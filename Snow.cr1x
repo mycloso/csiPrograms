@@ -1,0 +1,233 @@
+'CR1000 Series Datalogger
+'To create a different opening program template, type in new
+'instructions and select Template | Save as Default Template
+'date:
+'program author:
+
+'Sommer Wiring
+' Pink  - c7
+' Red   - c8
+' Black - G
+' Brown - 12v
+'
+'Luft Wiring
+' Brown  - SW12_2
+' White  - G
+' Yellow - C1
+
+'LM20 Wiring
+' Red    - 5v
+' Black  - G
+' Yellow - C6
+' White  - C5
+ 
+
+
+
+
+'Declare Public Variables
+'Example:
+Public numGood,makeRead,forceRead,testLaser
+Public PTemp, batt_volt,distance_f,distance_s,distance_l,i
+
+Public yTilt,angle
+Public raw As String * 100
+Public SplitResult(7) As String * 10
+
+
+Public Lufttemp As String * 100
+Public Luftsplit(5) As String * 10
+Public LuftSnowDepth
+Public LuftDistance
+Public LuftAngle
+Public LuftCalib
+
+Public readLeddarOne
+
+Public Sommerdistance
+
+Public leddar_one(10)      'Array for leddar_one returned data
+Public Sommerraw(50)
+Public rawDist_f(50)
+Public rawDist_s(50)
+Public rawDist_l(50)
+
+Const LM20port = comC5
+
+Const Laserport = comC3 
+Const sendInterval = 60
+
+Const SommerPort = ComC7
+
+
+'Declare Other Variables
+'Example:
+'Dim Counter
+
+'Declare Constants
+'Example:
+'CONST PI = 3.141592654
+
+'Define Data Tables
+DataTable (laser,1,-1)
+  'DataInterval (0,60,Min,10)
+  Minimum (1,batt_volt,FP2,0,False)
+  Sample (1,PTemp,FP2)
+  Sample (1,distance_f*12,FP2)
+  Sample (1,distance_s*12,FP2)
+  Sample (1,distance_l*12,FP2)
+  Sample (1,angle,FP2)
+EndTable
+
+
+DataTable (rawMeasure_f,1,-1)
+  'DataInterval (0,60,Min,10)
+  Sample (50,rawDist_f,FP2)
+EndTable
+
+DataTable (rawMeasure_s,1,-1)
+  'DataInterval (0,60,Min,10)
+  Sample (50,rawDist_s,FP2)
+  Sample (1,SplitResult(7),String)
+EndTable
+DataTable (rawMeasure_l,1,-1)
+  'DataInterval (0,60,Min,10)
+  Sample (50,rawDist_l,FP2)
+EndTable
+
+
+
+
+
+
+
+
+'Main Program
+BeginProg
+
+  ';PortsConfig (&B00010000,&B11111111)
+  SerialOpen (Laserport,19200,0,0,200,1)
+  SerialOpen (LM20port,115200,16,0,50,2)
+  SerialOpen (Sommerport,9600,0,0,50,0)
+  SW12 (SW12_1,1 )
+  SW12 (SW12_2,1 )
+  
+
+  Scan (1,min,0,0)
+   
+    If LuftCalib = 1 Then
+      SDI12Recorder (Lufttemp,C1,0,"XARV!",1.0,0,,2)
+      LuftCalib = 0
+    EndIf
+      
+      
+    If forceRead = 1 Then
+      makeRead = 1
+    EndIf
+    If TimeIntoInterval(0,sendInterval,min) Then
+      makeRead = 1
+    EndIf
+
+    If TimeIntoInterval(0,sendInterval,min) Then
+      forceRead = 0
+    EndIf
+
+    If makeRead = 1 Then
+
+   
+      PanelTemp (PTemp,250)
+      Battery (batt_volt)
+
+'      ModbusMaster (readLeddarOne,Leddarport,19200,1,1,leddar_one,20,10,3,100)
+
+      'Read Luft Sensor
+      SDI12Recorder (Lufttemp,C1,0,"M!",1.0,0)
+      Delay(0,1,Sec)
+      SplitStr (Luftsplit,Lufttemp,"+",5,7)
+      LuftSnowDepth = Luftsplit(3)
+      Delay(0,1,Sec)
+      SDI12Recorder (Lufttemp,C1,0,"D1!",1.0,0,,2)
+      SplitStr (Luftsplit,Lufttemp,"+",5,7)
+      LuftAngle = Luftsplit(4)
+      Delay(0,1,Sec)
+      SDI12Recorder (Lufttemp,C1,0,"M2!",1.0,0)
+      Delay(0,1,Sec)
+      SDI12Recorder (Lufttemp,C1,0,"D1!",1.0,0,,2)
+      SplitStr (Luftsplit,Lufttemp,"+",5,7)
+      LuftDistance = Luftsplit(2)
+      
+      'Read Sommer Sensor
+      SerialFlush(SommerPort)
+      SerialOut(SommerPort,":00;","",0,0)
+      SerialIn (raw,SommerPort,100,10,100)
+      SplitStr (SplitResult(1),raw," ",2,7)
+      
+      Sommerdistance = SplitResult(1)-1000
+      
+      delay(0,5,sec)
+      
+      
+      numGood = 0
+     
+      'Read Laser Tech Sensor
+      SerialFlush(Laserport)
+      SerialOut(Laserport,"$DM,7"+CHR(13)+CHR(10),"",0,0)
+      'DM4 - Last
+      'DM2 - First
+      'DM3 - Strongest
+      'DM7 - First,strongest,last
+      Delay(0,1,2)
+      SerialOut(Laserport,"$LS,2"+CHR(13)+CHR(10),"",0,0)
+      'LS0 - Do not report weaker
+      'LS1 - Report weaker if no strong
+      'LS2 - Always report weaker
+      Delay(0,1,2)
+      SerialOut(Laserport,"$MM,0"+CHR(13)+CHR(10),"",0,0)
+      'MM0 - Standard Range
+      'MM1 - Extended Range
+      'MM2 - Itelligent Range
+      Delay(0,1,2)
+
+      'TAKE FIRST SET OF MEASUREMENTS
+      SerialOut(Laserport,"$GO,60"+CHR(13)+CHR(10),"",0,0)
+      'Delay(0,1,2)
+      SerialIn (raw,Laserport,100,10,100)
+      SerialIn (raw,Laserport,100,10,100)
+      For i = 1 To 50 Step 1
+        'example laser output  "$DM,L,6.40,F,0,4-1072*9E16"
+        SerialIn (raw,Laserport,100,10,100)
+        SplitStr (SplitResult(1),raw,",",7,7)
+        If SplitResult(1) = "$DM" Then
+          rawDist_f(i) = SplitResult(3)
+          rawDist_s(i) = SplitResult(4)
+          rawDist_l(i) = SplitResult(5)
+          numGood = numGood + 1
+        Else
+          rawDist_f(i) = 9999
+          rawDist_s(i) = 9999
+          rawDist_l(i) = 9999
+        EndIf
+
+      Next
+
+      SortSpa (rawDist_f,50,rawDist_f)
+      SortSpa (rawDist_s,50,rawDist_s)
+      SortSpa (rawDist_l,50,rawDist_l)
+      distance_f = rawDist_f(INT(numGood/2))
+      distance_s = rawDist_s(INT(numGood/2))
+      distance_l = rawDist_l(INT(numGood/2))
+      CallTable rawMeasure_f
+      CallTable rawMeasure_s
+      CallTable rawMeasure_l
+
+
+      CallTable laser
+      makeRead = 0
+      SW12(SW12_1,0)
+    EndIf
+
+  NextScan
+
+
+EndProg
+

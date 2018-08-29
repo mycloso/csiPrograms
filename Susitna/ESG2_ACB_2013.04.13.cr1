@@ -1,0 +1,609 @@
+'CR1000 Series Datalogger
+
+'Program Name: ESG2_Susitna_off_ice_ACB_2013_04_13.cr1
+
+'Modification Of:  Susitna_ESM3_2012.06.21.CR1
+'Modified By: Crane Johnson
+'Date Modified: 24 October 2016
+'Modifications: Iridium Hourly Table
+'Modifications: Iridium telemetry subroutines and incorporated into main program
+'Modifications:
+'Git Repository: https://github.com/cranejohnson/SusitnaPrograms
+'                Initial commit was the probam as-delivered by DGGS
+'Date Loaded:
+
+'Modification Of:  Susitna_ESM3_2012.06.21.CR1
+'Modified By: A.C. Beedlow, Geophysical Institute, University of Alaska Fairbanks
+'Date Modified: 11 July 2012
+'Modifications: Added RA01 Sensor, Tipping Bucket, Inclinometer Sensor.
+'Modifications: Changed scan interval from 5 sec to 3 sec. Corrected programing/wiring diagram agreement errors
+'Date Loaded:
+
+'Modification Of:  Susitna_ESM3_2012.06.21.CR1
+'Modified By: Paetzold
+'Date Modified: 10 July 2012
+'Modifications: Added HrlyClimate Table to be used only by EEI for Current Conditions 24-hr table on Diagnostics Web Page
+'Modifications: Corrected programing/wiring diagram agreement errors
+'Date Loaded:
+
+'Modification Of:  Susitna_Network_TMet_1_Program_2012.05.25.CR1
+'Modified By: Paetzold
+'Date Modified: 21 June 2012
+'Modifications: Changed StationName, Added PakBus ID and Station ID
+'Date Loaded: Not Loaded
+
+'Original Program:  Susitna_Network_TMet_1_Program_2012.05.25.CR1
+'Written By: R.F. Paetzold
+'Date Written: 25 May 2012
+'Date Loaded: Not Loaded
+
+'Station Notes:
+'       PakBus ID for Station: 2200             'INSERT PakBus ID HERE <==========
+'       Station ID:    2200                    'INSERT Station ID HERE <==========
+'       Time is set to AK Standard Time
+
+
+'''''''''''''''''''''''''''''''''''
+'''' INDIVIDUAL STATION INPUTS ''''
+'''''''''''''''''''''''''''''''''''
+
+'INSERT Station Name HERE:
+StationName (ESG2)               'INSERT Station Name HERE <=================
+
+'INSERT Station ID HERE:
+Const ID = 2200                  'INSERT Station ID HERE <==============================
+
+'INSERT Data from the RA01 Radiometer Calibration Sheet:
+'                                    Sensitivity uV/W/m^2
+'Pyranometer Up (SR01)                13.4
+'Pyrgeometer up (IR01)                10.3
+
+'Create the calibration coefficients specific to this RA01 Radiometer (1000/Sensitivity)
+Const SR01Upcal = 74.63
+Const IR01Upcal = 97.09
+
+
+'DECLARE PUBLIC VARIABLES
+Public StationID ' Station ID number, USER INPUT
+Public LoggerTemp_C
+Public CH200_M0(9)  'Array to hold all data from CH200
+
+Public AirTemp_C, RH, DewPoint_C, AirTemp_F
+
+Public SR01Up_W_m2              'ACB: SWin (global)
+Public IR01Up_W_m2              'ACB: LWin (incomming LW)
+Public RA01TC_degC              'Ave RA01 Temperature (deg C)
+Public RA01TK_K                 'Ave RA01 Temperature (K)
+Public IR01UpCo_W_m2            'Ave temperature corrected LWin (IR01Up)
+
+Public Rain_mm,Rain_Accum_mm        'Rain(mm) and Accumulated rain(mm)
+
+Public Tilt_Ux_deg
+Public Tilt_Uy_deg
+
+Public BaroPrNC_mB
+
+Public WSpd3m_ms, WDir3m, WSpd_mph,
+Public WindChill_C, WindChill_F
+Public TwoMinWspd3m_ms, TwoMinWDir3m
+
+Dim TwoMinWind
+Dim mp
+
+Alias CH200_M0(1)=BattVolts_V       'Battery voltage: VDC
+Alias CH200_M0(2)=BattCrnt_A        'Current going into, or out of, the battery: Amps
+Alias CH200_M0(3)=LoadCrnt_A        'Current going to the load: Amps
+Alias CH200_M0(4)=SolarPanel_V      'Voltage coming into the charger: VDC
+Alias CH200_M0(5)=SolarPanel_A      'Current coming into the charger: Amps
+Alias CH200_M0(6)=Chgr_Tmp_C         'Charger temperature: Celsius
+Alias CH200_M0(7)=Chgr_State        'Charging state: 2=Cycle, 3=Float, 1=Current Limited, or 0=None
+Alias CH200_M0(8)=Chgr_Source       'Charging source: 0=None, 1=Solar, or 2=AC
+Alias CH200_M0(9)=Ck_Batt           'Check battery error: 0=normal, 1=check battery
+
+'Iridium Variables
+Public tries                                   ' Counter that keeps track of the number of attempts to send data (zero'd out each hour)
+Public success                                 ' The variable is true when the modem is successful
+Const Iridiumport = com4                       ' This is the serail port that the iridium modem is connected to
+Const Iridiumpowerport = 6                     ' This is the port that turns the modem off and on 9=sw12
+Const numvals = 9                              'Number of value to pull out of the Iridium Table
+Const sendInterval = 60                        'How often to try and resend iridium data (minutes)
+Public forceMessage                            ' Set this variable to 1 in the field to force an iridium message
+
+
+
+
+'Hourly Diagonostics Table
+DataTable (HourlyDiag,1,-1)
+  DataInterval (0,60,Min,0)
+  Sample (1,StationID,fp2)
+
+  'BATTERY VOLTS (V)
+  Sample (1,CH200_M0(1),FP2)
+  Average (1,CH200_M0(1),FP2,False)
+  Maximum (1,CH200_M0(1),FP2,False,False)
+  Minimum (1,CH200_M0(1),FP2,False,False)
+
+  'BATTERY CURRENT (A)
+  Sample (1,CH200_M0(2),FP2)
+  Average (1,CH200_M0(2),FP2,False)
+  Maximum (1,CH200_M0(2),FP2,False,False)
+  Minimum (1,CH200_M0(2),FP2,False,False)
+
+  'LOAD CURRENT (A)
+  Sample (1,CH200_M0(3),FP2)
+  Average (1,CH200_M0(3),FP2,False)
+  Maximum (1,CH200_M0(3),FP2,False,False)
+  Minimum (1,CH200_M0(3),FP2,False,False)
+
+  'SOLAR PANEL VOLTS (V)
+  Sample (1,CH200_M0(4),FP2)
+  Average (1,CH200_M0(4),FP2,False)
+  Maximum (1,CH200_M0(4),FP2,False,False)
+  Minimum (1,CH200_M0(4),FP2,False,False)
+
+  'SOLAR PANEL CURRENT (A)
+  Sample (1,CH200_M0(5),FP2)
+  Average (1,CH200_M0(5),FP2,False)
+  Maximum (1,CH200_M0(5),FP2,False,False)
+  Minimum (1,CH200_M0(5),FP2,False,False)
+
+  Average (1,LoggerTemp_C,FP2,False)     'Logger Temperature (deg C)
+  Average (1,CH200_M0(6),FP2,False)      'Charge Regulator Temperature (deg C)
+EndTable
+
+'Hourly Meteorological Measurements Table
+DataTable (Hourly,1,-1)
+  DataInterval (0,60,Min,0)
+  Sample (1,StationID,fp2)
+
+  Sample (1,AirTemp_C,FP2)
+  Average (1,AirTemp_C,FP2,False)
+  Maximum (1,AirTemp_C,FP2,False,False)
+  Minimum (1,AirTemp_C,FP2,False,False)
+
+  Sample (1,RH,FP2)
+  Average (1,RH,FP2,False)
+
+  Sample (1,DewPoint_C,FP2)
+  Average (1,DewPoint_C,FP2,False)
+
+  Sample (1,SR01Up_W_m2,FP2)
+  Average (1,SR01Up_W_m2,FP2,False)
+  Sample (1,IR01Up_W_m2,FP2)
+  Average (1,IR01Up_W_m2,FP2,False)
+  Sample (1,RA01TC_degC,FP2)
+  Average (1,RA01TC_degC,FP2,False)
+  Sample (1,RA01TK_K,FP2)
+  Average (1,RA01TK_K,FP2,False)
+  Sample (1,IR01UpCo_W_m2,FP2)
+  Average (1,IR01UpCo_W_m2,FP2,False)
+
+
+  Sample (1,Rain_mm,FP2)
+  Average (1,Rain_mm,FP2,False)
+  Totalize(1,Rain_mm,FP2,False)
+
+  Sample (1,WSpd3m_ms,FP2)
+  Sample (1,WDir3m,FP2)
+  WindVector (1,WSpd3m_ms,WDir3m,FP2,False,0,0,0)
+  Maximum (1,WSpd3m_ms,FP2,False,False)
+  Average(1,WSpd3m_ms,FP2,False)     'ACB: Added April 2013
+  StdDev(1,WSpd3m_ms,FP2,False)      'ACB: Added April 2013
+  Sample (1,WindChill_C,FP2)
+  Average (1,WindChill_C,FP2,False)
+
+  Sample (1,Tilt_Ux_deg,FP2)
+  Average (1,Tilt_Ux_deg,FP2,False)
+  Sample (1,Tilt_Uy_deg,FP2)
+  Average (1,Tilt_Uy_deg,FP2,False)
+
+  Sample (1,BaroPrNC_mB,FP2)
+
+EndTable
+
+'Hourly Iridium Table
+DataTable (IridiumHourly,1,240)
+  DataInterval (0,60,Min,0)
+  Sample (1,CH200_M0(1),FP2)
+  Sample (1,AirTemp_C,FP2)
+  Sample (1,RH,FP2)
+  Sample (1,Rain_Accum_mm,FP2)
+  Sample (1,BaroPrNC_mB,FP2)
+  WindVector (1,WSpd3m_ms,WDir3m,FP2,0,0,0,1)
+  Maximum (1,WSpd3m_ms,FP2,False,False)
+  Sample (1,tries,FP2)
+EndTable
+
+'Half Hourly Climate Table (for Current Conditions Table on Web)
+DataTable (halfHrlyClimate,1,96)
+  DataInterval (0,30,Min,0)
+  Sample (1,StationID,fp2)
+  Sample (1,AirTemp_C,FP2)
+  Sample (1,RH,FP2)
+  Sample (1,WSpd3m_ms,FP2)
+  Sample (1,WDir3m,FP2)
+  Sample (1,SR01Up_W_m2,FP2)
+  Sample (1,IR01Up_W_m2,FP2)
+  Sample (1,RA01TC_degC,FP2)
+  Sample (1,RA01TK_K,FP2)
+  Sample (1,IR01UpCo_W_m2,FP2)
+  Sample (1,Rain_mm,FP2)
+  Sample (1,Tilt_Ux_deg,FP2)
+  Sample (1,Tilt_Uy_deg,FP2)
+  Sample (1,BaroPrNC_mB,FP2)
+
+EndTable
+
+'2-min Wind Table
+DataTable (TwoMinWd,1,1440)
+  DataInterval (0,2,Min,0)
+  Sample (1,StationID,fp2)
+
+  WindVector (1,TwoMinWspd3m_ms,TwoMinWDir3m,FP2,False,0,0,0)
+  Maximum (1,TwoMinWspd3m_ms,FP2,False,False)
+
+EndTable
+
+'Daily Output Table
+DataTable (Daily,1,-1)
+  DataInterval(0,1440,Min,0)
+  Sample (1,StationID,fp2)
+
+  Average (1,AirTemp_C,FP2,False)
+  Maximum (1,AirTemp_C,FP2,False,False)
+  Minimum (1,AirTemp_C,,FP2,False,False)
+
+  Maximum (1,RH,FP2,False,False)
+  Minimum (1,RH,FP2,False,False)
+
+  Maximum (1,DewPoint_C,FP2,False,False)
+  Minimum (1,DewPoint_C,,FP2,False,False)
+
+  WindVector (1,WSpd3m_ms,WDir3m,FP2,False,0,0,0)
+  Maximum (1,WSpd3m_ms,FP2,False,False)
+
+  Average (1,SR01Up_W_m2,FP2,False)
+  Maximum (1,SR01Up_W_m2,FP2,False,False)
+  Minimum (1,SR01Up_W_m2,FP2,False,False)
+  Average (1,IR01Up_W_m2,FP2,False)
+  Maximum (1,IR01Up_W_m2,FP2,False,False)
+  Minimum (1,IR01Up_W_m2,FP2,False,False)
+  Average (1,RA01TC_degC,FP2,False)
+  Maximum (1,RA01TC_degC,FP2,False,False)
+  Minimum (1,RA01TC_degC,FP2,False,False)
+  Average (1,RA01TK_K,FP2,False)
+  Maximum (1,RA01TK_K,FP2,False,False)
+  Minimum (1,RA01TK_K,FP2,False,False)
+  Average (1,IR01UpCo_W_m2,FP2,False)
+  Maximum (1,IR01UpCo_W_m2,FP2,False,False)
+  Minimum (1,IR01UpCo_W_m2,FP2,False,False)
+
+  Average (1,Rain_mm,FP2,False)
+  Maximum (1,Rain_mm,FP2,False,False)
+  Minimum (1,Rain_mm,FP2,False,False)
+  Totalize(1,Rain_mm,FP2,False)    'ACB: added 13 April 2013
+
+  Average (1,Tilt_Ux_deg,FP2,False)
+  Maximum (1,Tilt_Ux_deg,FP2,False,False)
+  Minimum (1,Tilt_Ux_deg,FP2,False,False)
+  Average (1,Tilt_Uy_deg,FP2,False)
+  Maximum (1,Tilt_Uy_deg,FP2,False,False)
+  Minimum (1,Tilt_Uy_deg,FP2,False,False)
+
+EndTable
+
+
+''''''''''''''''''''''
+'''' IRIDIUM SUB  ''''
+''''''''''''''''''''''
+
+'This subroutine converts a number to a positive integer for transfer by iridium
+'i.e.  12.14 becomes  2121  (add 200 then multiply by 10)
+Sub converttolong (floatval As Float, longval As Long)
+  longval = FIX((floatval+200)*10)
+EndSub
+
+'This subroutine converts from Celcius to Fahrenhiet temperature
+Sub converttof(temp As Float)
+  temp = temp*(9/5)+32
+EndSub
+
+
+Sub senddatatoiridium(numberofvalues,attempts,success)
+  Dim result(6)
+
+  Dim message As String * 150
+  Dim meslength
+  Public localattempts
+  Dim lastrecord(100)
+  Dim longrecord(100) As Long
+  Dim byte1 As Long
+  Dim byte2 As Long
+  Dim hours As Long
+  Dim offset1
+  Dim iridchecksum As Long
+  Public debug1 As String * 30
+  Public debug2 As String * 30
+  Public debug3 As String * 30
+  Public debug4 As String * 30
+  Public debug5 As String * 30
+
+  Dim binaryok As String * 20
+  Dim modemready As Long
+  Dim online As Long
+  Dim messageok As String * 20
+  Public messageresult As String * 50
+  Public numresult(2) As String * 50
+  Dim j
+
+  'Initialize iridium Variables
+  offset1 = 0
+  iridchecksum = 0
+  message = ""
+  success = 0
+  localattempts = 0
+
+
+  '###
+  '### Get the last data record
+  '###
+
+  GetRecord(lastrecord,IridiumHourly,1)
+
+  '###
+  '###Get the hours since beginning of the year and insert into binary message
+  '### Start calculating binary checksum value
+  '###
+  hours = INT((IridiumHourly.Timestamp(2,1))/3600)+24
+  MoveBytes (message,offset1,hours,2,2)
+  MoveBytes (byte1,3,hours,2,1)
+  MoveBytes (byte2,3,hours,3,1)
+  iridchecksum = iridchecksum + byte1+byte2
+  offset1 = offset1 + 2
+
+  '###
+  '###Get the specified number of values from the last record and insert them into the binary message
+  '###
+  For j=1 To numberofvalues Step 1
+    converttolong(lastrecord(j),longrecord(j))
+    MoveBytes (message,offset1,longrecord(j),2,2)
+    MoveBytes (byte1,3,longrecord(j),2,1)
+    MoveBytes (byte2,3,longrecord(j),3,1)
+    iridchecksum = iridchecksum + byte1+byte2
+    offset1 = offset1 + 2
+  Next j
+
+
+
+  '###
+  '### Add checksum to binary message
+  '###
+  meslength = numberofvalues*2+2
+  MoveBytes (message,offset1,iridchecksum,2,2)
+  offset1 = offset1 + 2
+
+  '###
+  '### Turn on modem and complete SBD session
+  '###
+  PortSet (Iridiumpowerport,1)
+  Delay (1,3,Sec)
+  SerialOpen (Iridiumport,19200,3,0,200)
+  While ((success <> 1) AND (localattempts < 4))
+    debug1 = ""
+    debug2 = ""
+    debug3 = ""
+    debug4 = ""
+    debug5 = ""
+    SerialFlush (Iridiumport)
+    messageresult = "-"
+    binaryok = 0
+    numresult(1) = 0
+    numresult(2) = 0
+    online = 0
+    modemready = 0
+    result() = 0
+    attempts = attempts + 1
+    localattempts = localattempts + 1
+    modemready = SerialOut(Iridiumport, "AT+SBDWB=" + meslength+CHR(13),"READY",1,300)
+    If (modemready<>0) Then
+      debug1 = "Modem Ready"
+      SerialOutBlock(Iridiumport,message,offset1)
+      SerialIn (binaryok,Iridiumport,100,"0",5)
+      If (InStr (1,binaryok,"0",2)) Then
+        debug2 = "Modem Accepts Data"
+        debug3 = "Waiting for Satellite"
+        online = SerialOut (Iridiumport,"AT+CIER=1,0,1,0"+CHR(13),"+CIEV:1,1",1,1000)                            'Set modem config and wait for satellite connection
+        If (online <> 0) Then
+          debug3 = "Satellite Visible"
+          debug4 = "Message Sent"
+          
+          SerialOut(Iridiumport,"AT+SBDIX"+CHR(13),"",0,0)
+          SerialIn(messageresult,Iridiumport,4000,0,30)
+          SplitStr(numresult,messageresult,":",2,5)
+          SplitStr(result,numresult(2),",",6,5)
+          If (result(1) < 5) Then
+            debug5 = "Delivery confirmed by Satellite"
+            debug1 = "-"
+            debug2 = "-"
+            success = 1
+          Else
+            debug4 = "Message Failed"
+            debug3 = "-"
+          EndIf
+        Else
+          debug3 = "No satellite Connection"
+        EndIf
+      Else
+        debug2 = "Data not accepted by modem"
+      EndIf
+    Else
+      debug1 = "Modem Not Ready"
+    EndIf
+
+  Wend
+  If (success = 0) Then
+    debug5 = "Message Not Delivered"
+    debug1 = "-"
+    debug2 = "-"
+  EndIf
+  SerialOut(Iridiumport,"AT+SBDD0"+CHR(13),"",0,100)
+  SerialFlush (Iridiumport)
+  SerialClose(Iridiumport)
+  PortSet(Iridiumpowerport,0)
+
+EndSub
+
+
+''''''''''''''''''''''
+'''' MAIN PROGRAM ''''
+''''''''''''''''''''''
+
+'SCAN (EXECUTE) PROGRAM AT 3-SEC INTERVALS
+BeginProg
+  'Three second scan interval
+  Rain_Accum_mm = 0
+  Scan (3,Sec,0,0)
+
+    ''''' Set Station ID '''''
+    StationID = ID
+
+
+    ''''''''''''
+    '   Wind   '
+    ''''''''''''
+
+    '''''  READ RM YOUNG 05106 WIND MONITOR  '''''
+
+    'Wind Monitor #1
+    PulseCount (WSpd3m_ms,1,1,1,1,.098,0)                             'Wind Speed (m/s)  ACB: P1
+    BrHalf(WDir3m,1,mV2500,8,Vx1,1,2500,true,200,250,355,0)        'Wind Direction (deg) ACB: SE 8 (diagram is SE 6)
+    If WDir3m>=360 Then WDir3m=0
+    If WDir3m<0 Then WDir3m=0
+
+    'Begin 60-sec Loop
+    If IfTime (0,60,Sec) Then
+
+      '''''''''''''''''''
+      '   Diagnostics   '
+      '''''''''''''''''''
+      'MEASURE DATALOGGER WIRING PANEL TEMPERATURE (deg C)
+      PanelTemp (LoggerTemp_C,250)
+
+      'CH200 CHARGE REGULATOR MEASUREMENTS
+      SDI12Recorder (CH200_M0(),1,0,"MC!",1.0,0)      'ACB: COM1
+
+
+      '''''''''''''
+      '   AT/RH   '
+      '''''''''''''
+
+      ''''''''''  READ HC2S3 AIR TEMPERATURE/RELATIVE HUMIDITY SENSOR  ''''''''''
+
+
+      PortSet (9,1)  'Turn HC2S3 Air T/RH sensor ON through SW12V
+      Delay (0,3,Sec)  'Allow 3s for sensor to warm up
+
+      'Read Air Temperature Sensor; Single-End Measurement
+
+      VoltSe (AirTemp_C,1,mV2500,4,0,0,250,0.1,-40)      'ACB: SE 4
+
+      'Read Relative Humidity Sensor; Single-End Measurement
+
+      VoltSe (RH,1,mV2500,5,0,0,250,0.1,0)              'ACB: SE 5
+
+      'Correction for sensor inaccuracy when RH near 100%
+      If RH>100 AND RH<103 Then RH=100
+
+      PortSet (9,0)  'Turn HC2S3 Air T/RH sensor OFF through SW12V
+
+      'Calculate Dew Point from Measured Air Temperature and Relative Humidity
+      DewPoint (DewPoint_C,AirTemp_C,RH)
+
+      ''''''''''  Calculate Wind Chill  ''''''''''
+      'From page 180 of the 2006 Alaska Safety Handbook (BP Exploration (Alaska) Inc., ConocoPhillips Alaska)
+      'Wind Chill (°F) = 35.74 + 0.6215T - 35.75 (V^0.16 ) + 0.4275T(V^0.16 )
+      '     Where, T=Air Temperature (°F)   V=Wind Speed (mph)
+      'Air temperaute is measured every execution interval wind chill is computed every exection interval with the current wind speed and previous
+      ' the equation only applies if ws is >= 3 mph and air temp is <= 50 F then apply the equation, other wise WindChill temp remains Air Temp.
+
+      AirTemp_F = AirTemp_C * (9/5) + 32
+      WSpd_mph = WSpd3m_ms * 2.2369363
+
+      ' set wind chill temp to air temp
+      WindChill_F = AirTemp_F
+      WindChill_F = 35.74 + 0.6215 * AirTemp_F - 35.75 * (WSpd_mph^0.16) + 0.4275 * AirTemp_F * (WSpd_mph^0.16)
+      WindChill_C = (WindChill_F - 32) * 5/9   'Added 05/08/08 RFP
+
+      If WSpd_mph < 3 OR AirTemp_F > 50 Then WindChill_F = AirTemp_F
+      If WSpd_mph < 3 OR AirTemp_F > 50 Then WindChill_C = AirTemp_C
+
+
+
+      '''''''''Insert Other Sensors here'''''''''
+
+      '''''''''''Hukseflux RA01 Radiometer'''''''''''
+      'RA01 Radiometer measurements SR01Dn (SWin) and IR01Dn (LWin)
+      'ACB: Note a 4WPB100 Module was not purchased so the temperatures seem backwards (e.g. K is deg C and dec C is -K)
+      VoltDiff(SR01Up_W_m2,1,autorange,5,True,0,_50Hz,SR01Upcal,0)        'ACB: DIFF 5
+      VoltDiff(IR01Up_W_m2,1,mV7_5,6,True,0,_50Hz,IR01Upcal,0)              'ACB: DIFF 6
+      BrHalf4W(RA01TC_degC,1,mV25,mV25,7,Vx2,1,2100,True,True,0,250,1.0,0)  'ACB: DIFF 8 and VX2
+      PRT(RA01TC_degC,1,RA01TC_degC,1,0)
+      RA01TK_K = RA01TC_degC + 273.15
+      IR01UpCo_W_m2 = IR01Up_W_m2 + 5.67*10^-8*RA01TK_K^4                   'ACB: Average Temp corrected IR01Up
+
+      ''''''''''TE525MM Tipping Bucket Precip Gauge'''''''''''
+      PulseCount(Rain_mm,1,2,2,0,0.1,0)                                     'ACB: P2
+      Rain_Accum_mm = Rain_Accum_mm +Rain_mm
+
+      ''''''''''Turck Inclonometer Sensor''''''''''''
+      VoltSe (Tilt_Ux_deg,1,mV5000,1,0,0,0,0.01875,-45)                             'ACB: SE 1
+      VoltSe (Tilt_Uy_deg,1,mV5000,2,0,0,0,0.01875,-45)                             'ACB: SE 2
+
+      'Turn CS100 barometric pressure sensor ON for one min sensor warm up
+
+      If IfTime (29,30,Min)
+        PortSet (2,1)    'Turn barometric sensor sensor ON
+      EndIf
+
+      'Begin 30-min interval scan loop
+      If IfTime (0,30,Min) Then
+
+        '''''''''''''''''''''''''''
+        '   Barometric Pressure   '
+        '''''''''''''''''''''''''''
+
+        'Read CS100 Barometric Pressure Sensor; Output in mb Uncorrected for elevation
+        VoltSe (BaroPrNC_mB,1,mV2500,7,1,0,_60Hz,0.240,500)           'ACB: SE 7
+
+        PortSet (2,0)  'Turn barometric pressure sensor OFF
+
+      EndIf  'End of 30-minute scan loop
+    EndIf  'End of 60-seccond scan loop
+
+    CallTable HourlyDiag
+    CallTable Hourly
+    CallTable halfHrlyClimate
+    CallTable TwoMinWd
+    CallTable Daily
+    CallTable IridiumHourly
+
+  NextScan
+
+  SlowSequence
+  Scan (1,min,0,0)
+    If forceMessage = 1 Then
+      Call senddatatoiridium(numvals,tries,success)
+      forceMessage = 0
+    EndIf
+    If TimeIntoInterval(1,sendInterval,min) Then
+      tries = 0
+      Call senddatatoiridium(numvals,tries,success)
+    EndIf
+    If TimeIntoInterval(3,5,min) Then
+      If (success = 0) Then
+        Call senddatatoiridium(numvals,tries,success)
+      EndIf
+    EndIf
+  NextScan
+
+EndProg
