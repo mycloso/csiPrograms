@@ -1,13 +1,20 @@
 'CR1000x Series Datalogger
 
 
+
+'Comments and Notes
+' All sensor heights are set in inches
+' Set forceRead = 1 to force a set of snow depth readings
+' Set luftCalib = 1 to perform the luft calibration...this will set the sensor to read snow depth based on target assuming currently no snow.
+
+
 'Sommer Wiring
 ' Pink  - C7
 ' Red   - C8
 ' Black - G
 ' Brown - 12v
 '
-'Luft Wiring
+'luft Wiring
 ' Brown  - SW12_2
 ' White  - G
 ' Yellow - C1
@@ -32,48 +39,53 @@
 
 
 
+'Constants
+Const LM20port = comC5
+Const Laserport = comC3 
+Const SommerPort = ComC7
+Const logInterval = 60
 
-
-'Declare Public Variables
-'Example:
+'Public variables
 Public numGood,makeRead,forceRead,testLaser
-Public PTemp, batt_volt,distance_f,distance_s,distance_l,i
+Public PTemp, batt_volt
 
-Public yTilt,angle
 Public raw As String * 100
 Public SplitResult(7) As String * 10
 
-Public juddHeight,laserHeight,lm20Height
-
-Public Lufttemp As String * 100
-Public Luftsplit(5) As String * 10
-Public LuftSnowDepth
-Public LuftDistance
-Public LuftAngle
-Public LuftCalib
-
-Public readLeddarOne
-
-Public Sommerdistance
-
-Public leddar_one(10)      'Array for leddar_one returned data
-Public Sommerraw(50)
+'Variables for LaserTech S200
 Public rawDist_f(50)
 Public rawDist_s(50)
 Public rawDist_l(50)
+Public distance_f,distance_s,distance_l,i
+Public yTilt,angle
+Public s200Height
+Public s200SnowDepth
 
-Const LM20port = comC5
+'Variables for Judd Sensor
+Public juddHeight,juddSnowDepth,juddDistance
 
-Const Laserport = comC3 
-Const sendInterval = 60
+'Variables for LM20
+Public lm20Height,lm20Distance,lm20SnowDepth
 
-Const SommerPort = ComC7
+'Variables for Luft
+Public luftTemp As String * 100
+Public luftSplit(5) As String * 10
+Public luftSnowDepth,luftDistance,luftAngle,luftCalib
+
+Public readLeddarOne
+Public leddar_one(10)      'Array for leddar_one returned data
+
+'Variables for Sommer
+Public sommerDistance,sommerHeight,sommerSnowDepth
+Public sommerraw(50)
+
+
 
 
 
 
 'Define Data Tables
-DataTable (laser,1,-1)
+DataTable (laserS200,1,-1)
   'DataInterval (0,60,Min,10)
   Minimum (1,batt_volt,FP2,0,False)
   Sample (1,PTemp,FP2)
@@ -81,20 +93,21 @@ DataTable (laser,1,-1)
   Sample (1,distance_s*12,FP2)
   Sample (1,distance_l*12,FP2)
   Sample (1,angle,FP2)
+  Sample (1,s200SnowDepth,FP2)
 EndTable
 
 
-DataTable (rawLaser_first,1,-1)
+DataTable (rawS200_first,1,-1)
   'DataInterval (0,60,Min,10)
   Sample (50,rawDist_f,FP2)
 EndTable
 
-DataTable (rawLaser_strongest,1,-1)
+DataTable (rawS200_strongest,1,-1)
   'DataInterval (0,60,Min,10)
   Sample (50,rawDist_s,FP2)
   Sample (1,SplitResult(7),String)
 EndTable
-DataTable (rawLaser_last,1,-1)
+DataTable (rawS200_last,1,-1)
   'DataInterval (0,60,Min,10)
   Sample (50,rawDist_l,FP2)
 EndTable
@@ -121,11 +134,9 @@ BeginProg
 
   Scan (1,min,0,0)
     
-    'Set LuftCalib to 1 to perform the luft calibration...this will set the sensor to read snow depth based on target assuming currently no snow.
-
-    If LuftCalib = 1 Then
-      SDI12Recorder (Lufttemp,C1,0,"XARV!",1.0,0,,2)
-      LuftCalib = 0
+    If luftCalib = 1 Then
+      SDI12Recorder (lufttemp,C1,0,"XARV!",1.0,0,,2)
+      luftCalib = 0
     EndIf
       
     'Set forceRead to 1 to force a set of measurements  
@@ -133,7 +144,7 @@ BeginProg
       makeRead = 1
     EndIf
 
-    If TimeIntoInterval(0,sendInterval,min) Then
+    If TimeIntoInterval(0,logInterval,min) Then
       makeRead = 1
       forceRead = 0
     EndIf
@@ -144,44 +155,42 @@ BeginProg
       PanelTemp (PTemp,250)
       Battery (batt_volt)
 
-      'Read Judd Sensor
+     'Read Judd Sensor
       Delay(0,2600,mSec)
-      VoltDiff(snowHeight,1,mv2500,1,0,0,250,-0.19685,0)
-      snowDepth = snowHeight + juddOffset
+      VoltDiff(snowDistance,1,mv2500,1,0,0,250,-0.19685,0)
+      juddSnowDepth = juddHeight + juddDistance
       PortSet(3,0)
 
-'      ModbusMaster (readLeddarOne,Leddarport,19200,1,1,leddar_one,20,10,3,100)
+     'ModbusMaster (readLeddarOne,Leddarport,19200,1,1,leddar_one,20,10,3,100)
 
-      'Read Luft Sensor
-      SDI12Recorder (Lufttemp,C1,0,"M!",1.0,0)
+     'Read luft Sensor
+      SDI12Recorder (lufttemp,C1,0,"M!",1.0,0)
       Delay(0,1,Sec)
-      SplitStr (Luftsplit,Lufttemp,"+",5,7)
-      LuftSnowDepth = Luftsplit(3)
+      SplitStr (luftsplit,lufttemp,"+",5,7)
+      luftSnowDepth = luftsplit(3)*0.0393701
       Delay(0,1,Sec)
-      SDI12Recorder (Lufttemp,C1,0,"D1!",1.0,0,,2)
-      SplitStr (Luftsplit,Lufttemp,"+",5,7)
-      LuftAngle = Luftsplit(4)
+      SDI12Recorder (lufttemp,C1,0,"D1!",1.0,0,,2)
+      SplitStr (luftsplit,lufttemp,"+",5,7)
+      luftAngle = luftsplit(4)
       Delay(0,1,Sec)
-      SDI12Recorder (Lufttemp,C1,0,"M2!",1.0,0)
+      SDI12Recorder (lufttemp,C1,0,"M2!",1.0,0)
       Delay(0,1,Sec)
-      SDI12Recorder (Lufttemp,C1,0,"D1!",1.0,0,,2)
-      SplitStr (Luftsplit,Lufttemp,"+",5,7)
-      LuftDistance = Luftsplit(2)
+      SDI12Recorder (lufttemp,C1,0,"D1!",1.0,0,,2)
+      SplitStr (luftsplit,lufttemp,"+",5,7)
+      luftDistance = luftsplit(2)*0.0393701
       
-      'Read Sommer Sensor
+     'Read Sommer Sensor
       SerialFlush(SommerPort)
       SerialOut(SommerPort,":00;","",0,0)
       SerialIn (raw,SommerPort,100,10,100)
       SplitStr (SplitResult(1),raw," ",2,7)
-      
-      Sommerdistance = SplitResult(1)-1000
+      sommerDistance = SplitResult(1)-1000
+      sommerSnowDepth = sommerHeight - (sommerDistance*0.0393701)
       
       delay(0,5,sec)
-      
-      
+       
+     'Read Laser Tech Sensor
       numGood = 0
-     
-      'Read Laser Tech Sensor
       SerialFlush(Laserport)
       SerialOut(Laserport,"$DM,7"+CHR(13)+CHR(10),"",0,0)
       'DM4 - Last
@@ -200,9 +209,9 @@ BeginProg
       'MM2 - Itelligent Range
       Delay(0,1,2)
 
-      'TAKE FIRST SET OF MEASUREMENTS
+     'TAKE FIRST SET OF MEASUREMENTS
       SerialOut(Laserport,"$GO,60"+CHR(13)+CHR(10),"",0,0)
-      'Delay(0,1,2)
+     'Delay(0,1,2)
       SerialIn (raw,Laserport,100,10,100)
       SerialIn (raw,Laserport,100,10,100)
       For i = 1 To 50 Step 1
