@@ -1,12 +1,9 @@
-'CR1000 Series Datalogger
-'To create a different opening program template, type in new
-'instructions and select Template | Save as Default Template
-'date:
-'program author:
+'CR1000x Series Datalogger
+
 
 'Sommer Wiring
-' Pink  - c7
-' Red   - c8
+' Pink  - C7
+' Red   - C8
 ' Black - G
 ' Brown - 12v
 '
@@ -20,7 +17,19 @@
 ' Black  - G
 ' Yellow - C6
 ' White  - C5
- 
+
+'Judd Sensor Wiring
+' Green - SW12_1
+' Red   - 12V
+' Brown - SE1
+' White - SE2
+
+'LaserTech S200 Wiring
+' Pink  - SW12_1
+' Black - GND
+' Brown - C3
+' Blue  - C4
+
 
 
 
@@ -34,6 +43,7 @@ Public yTilt,angle
 Public raw As String * 100
 Public SplitResult(7) As String * 10
 
+Public juddHeight,laserHeight,lm20Height
 
 Public Lufttemp As String * 100
 Public Luftsplit(5) As String * 10
@@ -60,13 +70,7 @@ Const sendInterval = 60
 Const SommerPort = ComC7
 
 
-'Declare Other Variables
-'Example:
-'Dim Counter
 
-'Declare Constants
-'Example:
-'CONST PI = 3.141592654
 
 'Define Data Tables
 DataTable (laser,1,-1)
@@ -80,17 +84,17 @@ DataTable (laser,1,-1)
 EndTable
 
 
-DataTable (rawMeasure_f,1,-1)
+DataTable (rawLaser_first,1,-1)
   'DataInterval (0,60,Min,10)
   Sample (50,rawDist_f,FP2)
 EndTable
 
-DataTable (rawMeasure_s,1,-1)
+DataTable (rawLaser_strongest,1,-1)
   'DataInterval (0,60,Min,10)
   Sample (50,rawDist_s,FP2)
   Sample (1,SplitResult(7),String)
 EndTable
-DataTable (rawMeasure_l,1,-1)
+DataTable (rawLaser_last,1,-1)
   'DataInterval (0,60,Min,10)
   Sample (50,rawDist_l,FP2)
 EndTable
@@ -109,34 +113,42 @@ BeginProg
   SerialOpen (Laserport,19200,0,0,200,1)
   SerialOpen (LM20port,115200,16,0,50,2)
   SerialOpen (Sommerport,9600,0,0,50,0)
+  
+  'Turn on Switched 12v ports...need to optimize in the future
   SW12 (SW12_1,1 )
   SW12 (SW12_2,1 )
   
 
   Scan (1,min,0,0)
-   
+    
+    'Set LuftCalib to 1 to perform the luft calibration...this will set the sensor to read snow depth based on target assuming currently no snow.
+
     If LuftCalib = 1 Then
       SDI12Recorder (Lufttemp,C1,0,"XARV!",1.0,0,,2)
       LuftCalib = 0
     EndIf
       
-      
+    'Set forceRead to 1 to force a set of measurements  
     If forceRead = 1 Then
       makeRead = 1
     EndIf
-    If TimeIntoInterval(0,sendInterval,min) Then
-      makeRead = 1
-    EndIf
 
     If TimeIntoInterval(0,sendInterval,min) Then
+      makeRead = 1
       forceRead = 0
     EndIf
 
+
     If makeRead = 1 Then
 
-   
       PanelTemp (PTemp,250)
       Battery (batt_volt)
+
+      'Read Judd Sensor
+      Delay(0,2600,mSec)
+      VoltDiff(snowHeight,1,mv2500,1,0,0,250,-0.19685,0)
+      snowDepth = snowHeight + juddOffset
+      PortSet(3,0)
 
 '      ModbusMaster (readLeddarOne,Leddarport,19200,1,1,leddar_one,20,10,3,100)
 
@@ -223,7 +235,6 @@ BeginProg
 
       CallTable laser
       makeRead = 0
-      SW12(SW12_1,0)
     EndIf
 
   NextScan
