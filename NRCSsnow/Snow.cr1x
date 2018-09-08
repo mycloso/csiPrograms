@@ -46,9 +46,8 @@ Const SommerPort = ComC7
 Const logInterval = 60
 
 'Public variables
-Public numGood,makeRead,forceRead,testLaser
+Public numGood,makeRead,forceRead
 Public PTemp, batt_volt
-
 Public raw As String * 100
 Public SplitResult(7) As String * 10
 
@@ -72,6 +71,7 @@ Public luftTemp As String * 100
 Public luftSplit(5) As String * 10
 Public luftSnowDepth,luftDistance,luftAngle,luftCalib
 
+'Variables for leddarOne
 Public readLeddarOne
 Public leddar_one(10)      'Array for leddar_one returned data
 
