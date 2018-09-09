@@ -34,14 +34,14 @@
 'LaserTech S200 Wiring
 ' Pink  - SW12_1
 ' Black - GND
-' Brown - C3
-' Blue  - C4
+' Brown - C4
+' Blue  - C3
 
 
 
 'Constants
 Const LM20port = comC5
-Const Laserport = comC3 
+Const Laserport = comC3
 Const SommerPort = ComC7
 Const logInterval = 60
 
@@ -85,7 +85,7 @@ Alias setupVars(6)=ledderVueHeight
 
 Public SplitResult(7) As String * 10
 Public leddar_one(10)      'Array for leddar_one returned data
-Public sommerraw(50)
+
 
 
 
@@ -134,23 +134,23 @@ BeginProg
 
 
   ';PortsConfig (&B00010000,&B11111111)
-  SerialOpen (Laserport,19200,0,0,200,1)
+  SerialOpen (Laserport,115200,0,0,200)
   SerialOpen (LM20port,115200,16,0,50,2)
-  SerialOpen (Sommerport,9600,0,0,50,0)
-  
+  SerialOpen (SommerPort,9600,0,0,50,0)
+
   'Turn on Switched 12v ports...need to optimize in the future
   SW12 (SW12_1,1 )
   SW12 (SW12_2,1 )
-  
+
 
   Scan (1,min,0,0)
-    
+
     If luftCalib = 1 Then
-      SDI12Recorder (lufttemp,C1,0,"XARV!",1.0,0,,2)
+      SDI12Recorder (luftTemp,C1,0,"XARV!",1.0,0,,2)
       luftCalib = 0
     EndIf
-      
-    'Set forceRead to 1 to force a set of measurements  
+
+    'Set forceRead to 1 to force a set of measurements
     If forceRead = 1 Then
       makeRead = 1
     EndIf
@@ -169,50 +169,50 @@ BeginProg
 
       PanelTemp (PTemp,250)
       Battery (batt_volt)
-      
-     'Read LM20 Sensor
+
+      'Read LM20 Sensor
       SerialFlush(LM20port)
       SerialOut(LM20port,"?ldl"+CHR(13)+CHR(10),"",0,0)
       SerialIn (raw,LM20port,100,10,100)
       SplitStr (lm20Split(1),raw,":",2,7)
       lm20Distance = lm20Split(2)
-      lm20SnowDepth = lm20Height - (lm20Distance*39.3701)
+      lm20Distance = lm20Distance * 39.3701
+      lm20SnowDepth = lm20Height - lm20Distance
 
 
-     'Read Judd Sensor
+      'Read Judd Sensor
       Delay(0,2600,mSec)
       VoltDiff(juddDistance,1,mv5000,1,0,0,250,-0.19685,0)
       juddSnowDepth = juddHeight + juddDistance
 
-     'ModbusMaster (readLeddarOne,Leddarport,19200,1,1,leddar_one,20,10,3,100)
+      'ModbusMaster (readLeddarOne,Leddarport,19200,1,1,leddar_one,20,10,3,100)
 
-     'Read luft Sensor
-      SDI12Recorder (lufttemp,C1,0,"M!",1.0,0)
+      'Read luft Sensor
+      SDI12Recorder (luftTemp,C1,0,"M!",1.0,0)
       Delay(0,1,Sec)
-      SplitStr (luftsplit,lufttemp,"+",5,7)
-      luftSnowDepth = luftSplit(3) 
+      SplitStr (luftSplit,luftTemp,"+",5,7)
+      luftSnowDepth = luftSplit(3)
       Delay(0,1,Sec)
-      SDI12Recorder (lufttemp,C1,0,"D1!",1.0,0,,2)
-      SplitStr (luftsplit,lufttemp,"+",5,7)
-      luftAngle = luftsplit(4)
+      SDI12Recorder (luftTemp,C1,0,"D1!",1.0,0,,2)
+      SplitStr (luftSplit,luftTemp,"+",5,7)
+      luftAngle = luftSplit(4)
       Delay(0,1,Sec)
-      SDI12Recorder (lufttemp,C1,0,"M2!",1.0,0)
+      SDI12Recorder (luftTemp,C1,0,"M2!",1.0,0)
       Delay(0,1,Sec)
-      SDI12Recorder (lufttemp,C1,0,"D1!",1.0,0,,2)
-      SplitStr (luftsplit,lufttemp,"+",5,7)
+      SDI12Recorder (luftTemp,C1,0,"D1!",1.0,0,,2)
+      SplitStr (luftSplit,luftTemp,"+",5,7)
       luftDistance = luftSplit(2)
-      
-     'Read Sommer Sensor
+
+      'Read Sommer Sensor
       SerialFlush(SommerPort)
       SerialOut(SommerPort,":00;","",0,0)
       SerialIn (raw,SommerPort,100,10,100)
       SplitStr (SplitResult(1),raw," ",2,7)
       sommerDistance = SplitResult(1)
-      sommerSnowDepth = sommerHeight - (sommerDistance*0.0393701)
-      
-      delay(0,5,sec)
-       
-     'Read Laser Tech Sensor
+      sommerDistance = sommerDistance * 0.0393701
+      sommerSnowDepth = sommerHeight - sommerDistance
+
+      'Read Laser Tech Sensor
       SerialFlush(Laserport)
       SerialOut(Laserport,"$DM,7"+CHR(13)+CHR(10),"",0,0)
       'DM4 - Last
@@ -230,26 +230,34 @@ BeginProg
       'MM1 - Extended Range
       'MM2 - Itelligent Range
       Delay(0,1,2)
+      SerialFlush(Laserport)
 
-     'TAKE FIRST SET OF MEASUREMENTS
+      'TAKE FIRST SET OF MEASUREMENTS
       SerialOut(Laserport,"$GO,5"+CHR(13)+CHR(10),"",0,0)
-     'Delay(0,1,2)
+      'example laser output  "$DM,L,6.40,F,0,4-1072*9E16"
+      'Delay(0,1,2)
       SerialIn (raw,Laserport,100,10,100)
       SerialIn (raw,Laserport,100,10,100)
-        'example laser output  "$DM,L,6.40,F,0,4-1072*9E16"
-        SerialIn (raw,Laserport,100,10,100)
-        SplitStr (SplitResult(1),raw,",",7,7)
-        If SplitResult(1) = "$DM" Then
-          distance_f = SplitResult(3)
-          distance_s = SplitResult(4)
-          distance_l = SplitResult(5)
-          numGood = numGood + 1
-        Else
-          distance_f = 9999
-          distance_s = 9999
-          distance_l = 9999
-        EndIf
-        
+      SerialIn (raw,Laserport,100,10,100)
+      SerialIn (raw,Laserport,100,10,100)
+      SerialIn (raw,Laserport,100,10,100)
+
+      SplitStr (SplitResult(1),raw,",",7,7)
+      If SplitResult(1) = "$DM" Then
+        distance_f = SplitResult(3)
+        distance_f = distance_f * 39.3701
+        distance_s = SplitResult(4)
+        distance_s  = distance_s * 39.3701
+        distance_l = SplitResult(5)
+        distance_l = distance_l * 39.3701
+        s200SnowDepth = s200Height - distance_l
+        numGood = numGood + 1
+      Else
+        distance_f = 9999
+        distance_s = 9999
+        distance_l = 9999
+      EndIf
+
       CallTable laserS200
       makeRead = 0
     EndIf
