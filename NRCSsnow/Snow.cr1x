@@ -133,7 +133,7 @@ EndTable
 
 DataTable(Setup,1,1)
   'Save Setup Variables here
-  'DataInterval(5,5,Min,1)
+  DataInterval(5,5,Min,1)
   Sample(numSetupVars,setupVars(1),FP2)
 EndTable
 
@@ -287,6 +287,10 @@ BeginProg
       EndIf
 
       CallTable laserS200
+      CallTable sommer
+      CallTable luft
+      CallTable lm20
+      CallTable judd
       makeRead = 0
     EndIf
 
