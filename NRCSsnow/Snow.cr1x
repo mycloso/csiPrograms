@@ -7,30 +7,39 @@
 ' Set forceRead = 1 to force a set of snow depth readings
 ' Set luftCalib = 1 to perform the luft calibration...this will set the sensor to read snow depth based on target assuming currently no snow.
 
-
+'Sommer sensor
+'RS232 communication
 'Sommer Wiring
 ' Pink  - C7
 ' Red   - C8
 ' Black - G
 ' Brown - 12v
-'
+
+'Luft Sensor
+'SDI-12 communication
 'luft Wiring
 ' Brown  - SW12_2
 ' White  - G
 ' Yellow - C1
 
+'LM20 sensor
+'RS232 3.3v Communication
 'LM20 Wiring
 ' Red    - 5v
 ' Black  - G
 ' Yellow - C6
 ' White  - C5
 
+'Judd sensor
+'Analog Communication
 'Judd Sensor Wiring
 ' Green - SW12_1
 ' Red   - 12V
 ' Brown - SE1
 ' White - SE2
 
+'LaserTech sensor
+'RS232 Communication
 'LaserTech S200 Wiring
 ' Pink  - SW12_1
 ' Black - GND
@@ -91,16 +100,35 @@ Public leddar_one(10)      'Array for leddar_one returned data
 
 'Define Data Tables
 DataTable (laserS200,1,-1)
-  'DataInterval (0,60,Min,10)
   Minimum (1,batt_volt,FP2,0,False)
   Sample (1,PTemp,FP2)
-  Sample (1,distance_f*12,FP2)
-  Sample (1,distance_s*12,FP2)
-  Sample (1,distance_l*12,FP2)
+  Sample (1,distance_f,FP2)
+  Sample (1,distance_s,FP2)
+  Sample (1,distance_l,FP2)
   Sample (1,angle,FP2)
   Sample (1,s200SnowDepth,FP2)
 EndTable
 
+DataTable (luft,1,-1)
+  Sample (1,luftDistance,FP2)
+  Sample (1,luftAngle,FP2)
+  Sample (1,luftSnowDepth,FP2)
+EndTable
+
+DataTable (sommer,1,-1)
+  Sample (1,sommerDistance,FP2)
+  Sample (1,sommerSnowDepth,FP2)
+EndTable
+
+DataTable (judd,1,-1)
+  Sample (1,juddDistance,FP2)
+  Sample (1,juddSnowDepth,FP2)
+EndTable
+
+DataTable (lm20,1,-1)
+  Sample (1,lm20Distance,FP2)
+  Sample (1,lm20SnowDepth,FP2)
+EndTable
 
 
 DataTable(Setup,1,1)
