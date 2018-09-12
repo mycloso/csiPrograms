@@ -6,6 +6,10 @@
 ' All sensor heights are set in inches
 ' Set forceRead = 1 to force a set of snow depth readings
 ' Set luftCalib = 1 to perform the luft calibration...this will set the sensor to read snow depth based on target assuming currently no snow.
+' Set Actual sensor heights in inches in the public table, changes will be retained under loss of power, reset during program upload
+' Change the constant "logInterval = 15" to the number of minutes between reading, currently 15 minutes
+
+
 
 'Sommer sensor
 'RS232 communication
@@ -25,6 +29,7 @@
 'LM20 sensor
 'RS232 3.3v Communication
 'LM20 Wiring
+'Powered 100% of the time
 ' Red    - 5v
 ' Black  - G
 ' Yellow - C6
@@ -33,6 +38,7 @@
 'Judd sensor
 'Analog Communication
 'Judd Sensor Wiring
+'Powers on and off during scan cycle
 ' Green - C2
 ' Red   - 12V
 ' Black - G
@@ -42,6 +48,7 @@
 'LaserTech sensor
 'RS232 Communication
 'LaserTech S200 Wiring
+'Powers on and off during scan cycle
 ' Pink  - SW12_1
 ' Black - GND
 ' Brown - C4
@@ -53,7 +60,7 @@
 Const LM20port = comC5
 Const Laserport = comC3
 Const SommerPort = ComC7
-Const logInterval = 60
+Const logInterval = 15
 
 'Public variables
 Public numGood,makeRead,forceRead,progInit
@@ -63,7 +70,6 @@ Public raw As String * 100
 'Variables for LaserTech S200
 Public S200_distance_first,S200_distance_strongest,S200_distance_last,s200SnowDepth
 Public yTilt,angle
-
 
 'Variables for Judd Sensor
 Public juddSnowDepth,juddDistance,juddTemperature
@@ -77,11 +83,12 @@ Public luftTemp As String * 100
 Public luftSplit(5) As String * 10
 Public luftSnowDepth,luftDistance,luftAngle,luftCalib
 
-'Variables for leddarOne
-Public readLeddarOne
-
 'Variables for Sommer
 Public sommerDistance,sommerSnowDepth,sommerTemperature
+
+'Variables for leddarOne
+'Public readLeddarOne
+'Public leddar_one(10)      'Array for leddar_one returned data
 
 'Variable for setup table
 Const numSetupVars = 10
@@ -94,10 +101,8 @@ Alias setupVars(5)=ledderOneHeight
 Alias setupVars(6)=ledderVueHeight
 
 Public SplitResult(7) As String * 10
-Public leddar_one(10)      'Array for leddar_one returned data
 
-
-
+'----------------------------Data Tables---------------------------------
 
 'Define Data Tables
 DataTable (laserS200,1,-1)
@@ -134,19 +139,14 @@ DataTable (lm20,1,-1)
 EndTable
 
 
+'Save Setup Variables here
 DataTable(Setup,1,1)
-  'Save Setup Variables here
   DataInterval(5,5,Min,1)
   Sample(numSetupVars,setupVars(1),FP2)
 EndTable
 
 
-
-
-
-
-
-'Main Program
+'--------------------Main Program---------------------------------------
 BeginProg
   progInit = 0
   If progInit < 1 Then
@@ -162,14 +162,10 @@ BeginProg
     EndIf
   EndIf
 
-
-  ';PortsConfig (&B00010000,&B11111111)
   SerialOpen (Laserport,115200,0,0,200)
   SerialOpen (LM20port,115200,16,0,50,2)
   SerialOpen (SommerPort,9600,0,0,50,0)
 
-  'Turn on Switched 12v ports...need to optimize in the future
-  SW12 (SW12_2,1 )
 
 
   Scan (1,min,0,0)
@@ -198,6 +194,9 @@ BeginProg
     If makeRead = 1 Then
       'Turn on LaserTech S200
       SW12 (SW12_1,1 )
+      'Turn on Luft sensor
+      SW12 (SW12_2,1 )
+
 
       PanelTemp (PTemp,250)
       Battery (batt_volt)
@@ -295,6 +294,8 @@ BeginProg
       EndIf
 
       SW12 (SW12_1,0)
+      SW12 (SW12_2,1 )
+
 
       CallTable laserS200
       CallTable sommer
