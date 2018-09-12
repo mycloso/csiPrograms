@@ -8,6 +8,8 @@
 ' Set luftCalib = 1 to perform the luft calibration...this will set the sensor to read snow depth based on target assuming currently no snow.
 ' Set Actual sensor heights in inches in the public table, changes will be retained under loss of power, reset during program upload
 ' Change the constant "logInterval = 15" to the number of minutes between reading, currently 15 minutes
+' To calibrate the luft on-site set the luftCalib variable to 1 for one program scan through the top of the minute
+'      calibration takes a while, but will zero out snow depth on the current target
 
 
 
