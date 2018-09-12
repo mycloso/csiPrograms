@@ -33,8 +33,9 @@
 'Judd sensor
 'Analog Communication
 'Judd Sensor Wiring
-' Green - SW12_1
+' Green - C2
 ' Red   - 12V
+' Black - G
 ' Brown - SE1
 ' White - SE2
 
@@ -56,16 +57,16 @@ Const logInterval = 60
 
 'Public variables
 Public numGood,makeRead,forceRead,progInit
-Public PTemp, batt_volt
+Public PTemp, batt_volt,i
 Public raw As String * 100
 
 'Variables for LaserTech S200
-Public distance_f,distance_s,distance_l,i
+Public S200_distance_first,S200_distance_strongest,S200_distance_last,s200SnowDepth
 Public yTilt,angle
-Public s200SnowDepth
+
 
 'Variables for Judd Sensor
-Public juddSnowDepth,juddDistance
+Public juddSnowDepth,juddDistance,juddTemperature
 
 'Variables for LM20
 Public lm20Distance,lm20SnowDepth
@@ -80,7 +81,7 @@ Public luftSnowDepth,luftDistance,luftAngle,luftCalib
 Public readLeddarOne
 
 'Variables for Sommer
-Public sommerDistance,sommerSnowDepth
+Public sommerDistance,sommerSnowDepth,sommerTemperature
 
 'Variable for setup table
 Const numSetupVars = 10
@@ -102,9 +103,9 @@ Public leddar_one(10)      'Array for leddar_one returned data
 DataTable (laserS200,1,-1)
   Minimum (1,batt_volt,FP2,0,False)
   Sample (1,PTemp,FP2)
-  Sample (1,distance_f,FP2)
-  Sample (1,distance_s,FP2)
-  Sample (1,distance_l,FP2)
+  Sample (1,S200_distance_first,FP2)
+  Sample (1,S200_distance_strongest,FP2)
+  Sample (1,S200_distance_last,FP2)
   Sample (1,angle,FP2)
   Sample (1,s200SnowDepth,FP2)
 EndTable
@@ -118,11 +119,13 @@ EndTable
 DataTable (sommer,1,-1)
   Sample (1,sommerDistance,FP2)
   Sample (1,sommerSnowDepth,FP2)
+  Sample (1,sommerTemperature,FP2)
 EndTable
 
 DataTable (judd,1,-1)
   Sample (1,juddDistance,FP2)
   Sample (1,juddSnowDepth,FP2)
+  Sample (1,juddTemperature,FP2)
 EndTable
 
 DataTable (lm20,1,-1)
@@ -150,14 +153,13 @@ BeginProg
     progInit = 1
     GetRecord(setupVars,Setup,1)
     If Round(s200Height,0) = NAN Then 'table of setup vals is NANs
-      s200Height = 100
-      juddHeight = 100
-      lm20Height = 100
-      sommerHeight = 100
-      ledderOneHeight = 100
-      ledderVueHeight = 100
+      s200Height = 200
+      juddHeight = 200
+      lm20Height = 200
+      sommerHeight = 200
+      ledderOneHeight = 200
+      ledderVueHeight = 200
     EndIf
-    CallTable(setup)
   EndIf
 
 
@@ -167,7 +169,6 @@ BeginProg
   SerialOpen (SommerPort,9600,0,0,50,0)
 
   'Turn on Switched 12v ports...need to optimize in the future
-  SW12 (SW12_1,1 )
   SW12 (SW12_2,1 )
 
 
@@ -192,8 +193,11 @@ BeginProg
     If IfTime(1,5,Min) Then
       CallTable(Setup)
     EndIf
+    CallTable(setup)
 
     If makeRead = 1 Then
+      'Turn on LaserTech S200
+      SW12 (SW12_1,1 )
 
       PanelTemp (PTemp,250)
       Battery (batt_volt)
@@ -209,10 +213,13 @@ BeginProg
 
 
       'Read Judd Sensor
-      Delay(0,2600,mSec)
+      PortSet (C2,1)
+      Delay(0,1,Sec)
+      VoltDiff(juddTemperature,1,mv5000,1,0,0,250,-0.2,-273)
+      Delay(0,2,Sec)
       VoltDiff(juddDistance,1,mv5000,1,0,0,250,-0.19685,0)
-      juddSnowDepth = juddHeight + juddDistance
-
+      juddSnowDepth = juddHeight - juddDistance
+      PortSet(C2,0)
       'ModbusMaster (readLeddarOne,Leddarport,19200,1,1,leddar_one,20,10,3,100)
 
       'Read luft Sensor
@@ -237,6 +244,7 @@ BeginProg
       SerialIn (raw,SommerPort,100,10,100)
       SplitStr (SplitResult(1),raw," ",2,7)
       sommerDistance = SplitResult(1)
+      sommerTemperature = SplitResult(2)
       sommerDistance = sommerDistance * 0.0393701
       sommerSnowDepth = sommerHeight - sommerDistance
 
@@ -272,19 +280,21 @@ BeginProg
 
       SplitStr (SplitResult(1),raw,",",7,7)
       If SplitResult(1) = "$DM" Then
-        distance_f = SplitResult(3)
-        distance_f = distance_f * 39.3701
-        distance_s = SplitResult(4)
-        distance_s  = distance_s * 39.3701
-        distance_l = SplitResult(5)
-        distance_l = distance_l * 39.3701
-        s200SnowDepth = s200Height - distance_l
+        S200_distance_first = SplitResult(3)
+        S200_distance_first = S200_distance_first * 39.3701
+        S200_distance_strongest = SplitResult(4)
+        S200_distance_strongest  = S200_distance_strongest * 39.3701
+        S200_distance_last = SplitResult(5)
+        S200_distance_last = S200_distance_last * 39.3701
+        s200SnowDepth = s200Height - S200_distance_last
         numGood = numGood + 1
       Else
-        distance_f = 9999
-        distance_s = 9999
-        distance_l = 9999
+        S200_distance_first = 9999
+        S200_distance_strongest = 9999
+        S200_distance_last = 9999
       EndIf
+
+      SW12 (SW12_1,0)
 
       CallTable laserS200
       CallTable sommer
