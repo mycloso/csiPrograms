@@ -64,7 +64,7 @@ Const logInterval = 15
 
 'Public variables
 Public numGood,makeRead,forceRead,progInit
-Public PTemp, batt_volt,i
+Public PTemp, batt_volt
 Public raw As String * 100
 
 'Variables for LaserTech S200
@@ -191,11 +191,13 @@ BeginProg
     EndIf
     CallTable(setup)
 
+    'Turn on Luft sensor
+    SW12 (SW12_2,1 )
+    
+
     If makeRead = 1 Then
       'Turn on LaserTech S200
       SW12 (SW12_1,1 )
-      'Turn on Luft sensor
-      SW12 (SW12_2,1 )
 
 
       PanelTemp (PTemp,250)
@@ -294,7 +296,6 @@ BeginProg
       EndIf
 
       SW12 (SW12_1,0)
-      SW12 (SW12_2,1 )
 
 
       CallTable laserS200
