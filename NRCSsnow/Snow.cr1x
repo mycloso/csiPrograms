@@ -108,6 +108,7 @@ Public SplitResult(7) As String * 10
 
 'Define Data Tables
 DataTable (laserS200,1,-1)
+  TableFile ("USB:"+Status.SerialNumber+"_LaserS200",8,-1,0,0,Min,0,0)
   Minimum (1,batt_volt,FP2,0,False)
   Sample (1,PTemp,FP2)
   Sample (1,S200_distance_first,FP2)
@@ -118,24 +119,28 @@ DataTable (laserS200,1,-1)
 EndTable
 
 DataTable (luft,1,-1)
+  TableFile ("USB:"+Status.SerialNumber+"_Lufft",8,-1,0,0,Min,0,0)
   Sample (1,luftDistance,FP2)
   Sample (1,luftAngle,FP2)
   Sample (1,luftSnowDepth,FP2)
 EndTable
 
 DataTable (sommer,1,-1)
+  TableFile ("USB:"+Status.SerialNumber+"_Sommer",8,-1,0,0,Min,0,0)
   Sample (1,sommerDistance,FP2)
   Sample (1,sommerSnowDepth,FP2)
   Sample (1,sommerTemperature,FP2)
 EndTable
 
 DataTable (judd,1,-1)
+  TableFile ("USB:"+Status.SerialNumber+"_Judd",8,-1,0,0,Min,0,0)
   Sample (1,juddDistance,FP2)
   Sample (1,juddSnowDepth,FP2)
   Sample (1,juddTemperature,FP2)
 EndTable
 
 DataTable (lm20,1,-1)
+  TableFile ("USB:"+Status.SerialNumber+"_LW20",8,-1,0,0,Min,0,0)
   Sample (1,lm20Distance,FP2)
   Sample (1,lm20SnowDepth,FP2)
 EndTable
@@ -312,4 +317,3 @@ BeginProg
 
 
 EndProg
-
