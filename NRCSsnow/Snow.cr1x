@@ -83,7 +83,7 @@ Public lm20Split(2) As String * 10
 'Variables for Luft
 Public luftTemp As String * 100
 Public luftSplit(5) As String * 10
-Public luftSnowDepth,luftDistance,luftAngle,luftCalib
+Public luftSnowDepth,luftDistance,luftAngle,luftCalib,luftAmbTemperature
 
 'Variables for Sommer
 Public sommerDistance,sommerSnowDepth,sommerTemperature
@@ -123,6 +123,7 @@ DataTable (luft,1,-1)
   Sample (1,luftDistance,FP2)
   Sample (1,luftAngle,FP2)
   Sample (1,luftSnowDepth,FP2)
+  Sample (1,luftAmbTemperature,FP2)
 EndTable
 
 DataTable (sommer,1,-1)
@@ -178,7 +179,7 @@ BeginProg
   Scan (1,min,0,0)
 
     If luftCalib = 1 Then
-      SDI12Recorder (luftTemp,C1,0,"XARV!",1.0,0,,2)
+      SDI12Recorder (luftTemp,C1,0,"0XLARV!",1.0,0,,2)
       luftCalib = 0
     EndIf
 
@@ -233,8 +234,10 @@ BeginProg
       'Read luft Sensor
       SDI12Recorder (luftTemp,C1,0,"M!",1.0,0)
       Delay(0,1,Sec)
+      SDI12Recorder (luftTemp,C1,0,"D0!",1.0,0,,2
       SplitStr (luftSplit,luftTemp,"+",5,7)
       luftSnowDepth = luftSplit(3)
+      luftAmbTemperature = luftSplit(5)
       Delay(0,1,Sec)
       SDI12Recorder (luftTemp,C1,0,"D1!",1.0,0,,2)
       SplitStr (luftSplit,luftTemp,"+",5,7)
