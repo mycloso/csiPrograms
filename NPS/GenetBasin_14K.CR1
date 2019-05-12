@@ -1,8 +1,10 @@
 'CR1000
 'Program created on 4/12/2018.
+'Program edited on 5/12/2018.
+'Program edited on 5/31/2018.
 'For Genet Basin 14K Met Station. Measures AT, solar rad x2, w/s, w/d, and distance to snow
 '
-'Program measures air temperature with a CSI 107 temp sensor
+'Program measures air temperature with a CSI 107 or CSI 109 temp sensor
 '----
 'Wiring: Red=1H, Black= EX1, Purple=G, Clear=G
 '
@@ -13,9 +15,9 @@
 'Wiring: CS320_Sky White=C7, Clear=G, Red=12V, Black=G, Blue=G
 'Wiring: CS320_Snow White=C5, Clear=G, Red=12V, Black=G, Blue=G
 '
-'Program measures wind speed and direction with a 05108 RM Young anemometer
+'Program measures wind speed and direction with a 05108 or 05103 RM Young anemometer
 '----
-'Wiring: Green=2H, Red=P1, Blue=EX2, Black=G, Clear=G, White=G
+'Wiring: Green=1H (SE2), Red=P1, Blue=EX2, Black=G, Clear=G, White=G
 
 'Program measures snow depth with SR50 every per hour at 59 minutes past the hour
 'SR50 measures three variables:
@@ -26,14 +28,15 @@
 '---
 'Wiring:  Connect Ground first: Black=G, White=G, Clear=G, then Green=C3, Red=12V,
 
-'Iridium Modem
-'Wiring: Yellow = C1, Grey = C2, Red - C4
+'Iridium Modem IMEI 300234065794630
+'Wiring: Yellow = C1, Grey = C2, Red (single pigtail) - C4
+'Wiring (cont.) = Red 12V power, Black Ground [either on CR1000 or on charge controller]
 
 'For telemetry send the "Telemetry" table
 
 'Declare Variables and Units
 Public BattV
-Public AirTemp_F        'Air temperature measured by 107 sensor (Degree F)
+Public AirTemp_F        'Air temperature measured by 107 or 109 sensor (Degree F)
 Public AirTemp_C        'Air temp in C for SR50 temperature correction
 Public WS_mph           'Wind Speed measured by 05103 RM Young (mph)
 Public WindDir          'Wind direction measured by 05103 RM Young (degrees)
@@ -95,8 +98,8 @@ DataTable(Hourly,True,-1)
   Average (1,AirTemp_C,FP2,False)
   Average (1,CS320_Sky(),FP2,False)
   Average (1,CS320_Snow(),FP2,False)
-  Average(1,WS_mph,FP2,False)
-  WindVector (1,WS_mph,WindDir,FP2,False,0,0,3)
+  Maximum(1,WS_mph,FP2,False,False)
+  WindVector (1,WS_mph,WindDir,FP2,False,0,0,1)
   Average (1,Distance_m,FP2,False)
   Average (1,DT_Raw,FP2,False)
   Average (1,SR50_Quality,FP2,False)
@@ -104,6 +107,7 @@ EndTable
 
 'Parameters to send via telemtry each hour
 DataTable (Telemetry,True,-1)
+  DataInterval(0,60,Min,10)
   Average(1,BattV,FP2,False)
   Average(1,AirTemp_F,FP2,False)
   Average (1,SolarRad_Sky,FP2,False)
@@ -122,9 +126,6 @@ EndTable
 Sub converttolong (floatval As Float, longval As Long)
   longval = FIX((floatval+200)*10)
 EndSub
-
-
-
 
 Sub senddatatoiridium(numberofvalues,attempts,success)
   Dim result(6)
@@ -187,8 +188,6 @@ Sub senddatatoiridium(numberofvalues,attempts,success)
     iridchecksum = iridchecksum + byte1+byte2
     offset1 = offset1 + 2
   Next j
-
-
 
   '###
   '### Add checksum to binary message
@@ -265,18 +264,18 @@ EndSub
 '\\\\\\\\\\\\\\\\\\\\\\\\\\\ PROGRAM ////////////////////////////
 
 
-
-
 'Main Program executes every 60 seconds
 BeginProg
   Scan(60,Sec,1,0)
     'Default Datalogger Battery Voltage measurement BattV
     Battery(BattV)
-    '107 Temperature Probe measurement T107_F, log temperature as deg C for SR50 correction
-    Therm107(AirTemp_F,1,1,1,0,_60Hz,1.8,32)
+    '107 or 109 Temperature Probe measurement T107_F, log temperature as deg C for SR50 correction
+    Therm109 (AirTemp_F,1,1,Vx1,0,250,1.8,32)
+    'Therm107(AirTemp_F,1,1,1,0,_60Hz,1.8,32)
     AirTemp_C=(AirTemp_F-32)/1.8
-    '05108 Wind Speed & Direction Sensor measurements WS_mph and WindDir
+    '05103 or 05108 Wind Speed & Direction Sensor measurements WS_mph and WindDir
     'PulseCount(WS_mph,1,1,1,1,0.2192,0)        'Multiplier is 0.2192 for mph for 05103.
+    'Uncomment next line if 05108 is used, and comment out the line above.
     PulseCount(WS_mph,1,1,1,1,0.3726,0)          'Multiplier is 0.3726 for mph for 05108.
     BrHalf(WindDir,1,mV2500,2,2,1,2500,True,0,_60Hz,355,0)
     If WindDir>=360 Then WindDir=0
@@ -299,7 +298,6 @@ BeginProg
     CallTable (Telemetry)
     'Add telemetry instructions
   NextScan
-EndProg
 
 SlowSequence
 Scan (1,min,0,0)

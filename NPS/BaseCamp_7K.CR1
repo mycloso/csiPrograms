@@ -1,39 +1,42 @@
 'CR1000
 'Program created on 4/12/2018.
-'For Base Camp 7K Met Station. Measures AT, solar rad x2, w/s, w/d, and distance to snow
+'Program edited on 5/12/2018.
+'Program edited on 6/5/2018.
+'For 7K Met Station (Base Camp). Measures AT, solar rad x2, w/s, w/d, and distance to snow
 '
-'Program measures air temperature with a CSI 107 temp sensor
+'Program measures air temperature with a CSI 107 or CSI 109 temp sensor
 '----
 'Wiring: Red=1H, Black= EX1, Purple=G, Clear=G
 '
-'Program measures solar radition with two CS320 pyranmoeter sensors
+'Program measures solar radition with two CS320 pyranometer sensors
 'One points up at sky, one points down at snow
 'Each CS320 records 6 variables: solar rad W/m^2, mV 3)sensor temp., x, y, z orientation
 '----
 'Wiring: CS320_Sky White=C7, Clear=G, Red=12V, Black=G, Blue=G
 'Wiring: CS320_Snow White=C5, Clear=G, Red=12V, Black=G, Blue=G
 '
-'Program measures wind speed and direction with a 05103 RM Young anemometer
+'Program measures wind speed and direction with a 05108 or 05103 RM Young anemometer
 '----
-'Wiring: Green=2H, Red=P1, Blue=EX2, Black=G, Clear=G, White=G
+'Wiring: Green=1H (SE2), Red=P1, Blue=EX2, Black=G, Clear=G, White=G
 
 'Program measures snow depth with SR50 every per hour at 59 minutes past the hour
 'SR50 measures three variables:
 '1)DT_Raw = Distance to surface in meters
 '2)Distance_m = Distance to surface in meters after air temperature correction.
 '3) SR50_Quality = Quality value of measurement
-    '(ranges from 152 To 600, where 600 Is the poorest quality)
+'(ranges from 152 To 600, where 600 Is the poorest quality)
 '---
 'Wiring:  Connect Ground first: Black=G, White=G, Clear=G, then Green=C3, Red=12V,
 
-'Iridium Modem
-'Wiring: Yellow = C1, Grey = C2, Red - C4
+'Iridium Modem IMEI 300234065793490
+'Wiring: Yellow = C1, Grey = C2, Red (single pigtail) - C4
+'Wiring (cont.) = Red 12V power, Black Ground [either on CR1000 or on charge controller]
 
 'For telemetry send the "Telemetry" table
 
 'Declare Variables and Units
 Public BattV
-Public AirTemp_F        'Air temperature measured by 107 sensor (Degree F)
+Public AirTemp_F        'Air temperature measured by 107 or 109 sensor (Degree F)
 Public AirTemp_C        'Air temp in C for SR50 temperature correction
 Public WS_mph           'Wind Speed measured by 05103 RM Young (mph)
 Public WindDir          'Wind direction measured by 05103 RM Young (degrees)
@@ -42,10 +45,10 @@ Public CS320_Snow(6)    'Solar radiation measured by CS320. Pointing down toward
 Public Distance_m       'Distance to surface, corrected for air temperature
 Public SR50(2)
 
-'iridium variables
+'Iridium variables
+Public forceMessage
 Public tries                                                  ' Counter that keeps track of the number of attempts to send data (zero'd out each hour)
 Public success                                                ' The variable is true when the modem is successful
-Public forceMessage
 Const Iridiumport = com1                                      ' This is the serail port that the iridium modem is connected to
 Const Iridiumpowerport = 4                                    ' This is the port that turns the modem off and on 9=sw12
 Const numvals = 8                                             ' Edit this value to change the number of data values to pull from the table
@@ -89,28 +92,29 @@ Units Distance_m=m
 
 'Define Data Tables
 DataTable(Hourly,True,-1)
-	DataInterval(0,60,Min,10)
-	Average(1,BattV,FP2,False)
-	Average(1,AirTemp_F,FP2,False)
-	Average (1,AirTemp_C,FP2,False)
-	Average (1,CS320_Sky(),FP2,False)
-	Average (1,CS320_Snow(),FP2,False)
-	Average(1,WS_mph,FP2,False)
-	WindVector (1,WS_mph,WindDir,FP2,False,0,0,3)
-	Average (1,Distance_m,FP2,False)
-	Average (1,DT_Raw,FP2,False)
-	Average (1,SR50_Quality,FP2,False)
+  DataInterval(0,60,Min,10)
+  Average(1,BattV,FP2,False)
+  Average(1,AirTemp_F,FP2,False)
+  Average (1,AirTemp_C,FP2,False)
+  Average (1,CS320_Sky(),FP2,False)
+  Average (1,CS320_Snow(),FP2,False)
+  Maximum (1,WS_mph,FP2,False,False)
+  WindVector (1,WS_mph,WindDir,FP2,False,0,0,1)
+  Average (1,Distance_m,FP2,False)
+  Average (1,DT_Raw,FP2,False)
+  Average (1,SR50_Quality,FP2,False)
 EndTable
 
-'Parameters to send via telemtry each hour
+'Parameters to send via telemetry each hour
 DataTable (Telemetry,True,-1)
-    Average(1,BattV,FP2,False)
-	Average(1,AirTemp_F,FP2,False)
-	Average (1,SolarRad_Sky,FP2,False)
-	WindVector (1,WS_mph,WindDir,FP2,False,0,0,1)
-    Maximum (1,WS_mph,FP2,False,False)
-	Average (1,Distance_m,FP2,False)
-    Sample (1,tries,FP2)
+  DataInterval(0,60,Min,10)
+  Average(1,BattV,FP2,False)
+  Average(1,AirTemp_F,FP2,False)
+  Average (1,SolarRad_Sky,FP2,False)
+  WindVector (1,WS_mph,WindDir,FP2,False,0,0,1)
+  Maximum (1,WS_mph,FP2,False,False)
+  Average (1,Distance_m,FP2,False)
+  Sample (1,tries,FP2)
 EndTable
 
 
@@ -122,9 +126,6 @@ EndTable
 Sub converttolong (floatval As Float, longval As Long)
   longval = FIX((floatval+200)*10)
 EndSub
-
-
-
 
 Sub senddatatoiridium(numberofvalues,attempts,success)
   Dim result(6)
@@ -188,8 +189,6 @@ Sub senddatatoiridium(numberofvalues,attempts,success)
     offset1 = offset1 + 2
   Next j
 
-
-
   '###
   '### Add checksum to binary message
   '###
@@ -204,61 +203,61 @@ Sub senddatatoiridium(numberofvalues,attempts,success)
   Delay (1,3,Sec)
   SerialOpen (Iridiumport,19200,3,0,200)
   While ((success <> 1) AND (localattempts < 4))
-    debug1 = ""
-    debug2 = ""
-    debug3 = ""
-    debug4 = ""
-    debug5 = ""
-    SerialFlush (Iridiumport)
-    messageresult = "-"
-    binaryok = 0
-    numresult(1) = 0
-    numresult(2) = 0
-    online = 0
-    modemready = 0
-    result() = 0
-    attempts = attempts + 1
-    localattempts = localattempts + 1
-    modemready = SerialOut(Iridiumport, "AT+SBDWB=" + meslength+CHR(13),"READY",1,300)
-    If (modemready<>0) Then
-      debug1 = "Modem Ready"
-      SerialOutBlock(Iridiumport,message,offset1)
-      SerialIn (binaryok,Iridiumport,100,"0",5)
-      If (InStr (1,binaryok,"0",2)) Then
-        debug2 = "Modem Accepts Data"
-        debug3 = "Waiting for Satellite"
-        online = SerialOut (Iridiumport,"AT+CIER=1,0,1,0"+CHR(13),"+CIEV:1,1",1,1000)                            'Set modem config and wait for satellite connection
-        If (online <> 0) Then
-          debug3 = "Satellite Visible"
-          debug4 = "Message Sent"
-          SerialOut(Iridiumport,"AT+SBDIX"+CHR(13),"",0,0)
-          SerialIn(messageresult,Iridiumport,4000,0,30)
-          SplitStr(numresult,messageresult,":",2,5)
-          SplitStr(result,numresult(2),",",6,5)
-          If (result(1) < 5) Then
-            debug5 = "Delivery confirmed by Satellite"
-            success = 1
-          Else
-            debug4 = "Message Failed"
-          EndIf
+  debug1 = ""
+  debug2 = ""
+  debug3 = ""
+  debug4 = ""
+  debug5 = ""
+  SerialFlush (Iridiumport)
+  messageresult = "-"
+  binaryok = 0
+  numresult(1) = 0
+  numresult(2) = 0
+  online = 0
+  modemready = 0
+  result() = 0
+  attempts = attempts + 1
+  localattempts = localattempts + 1
+  modemready = SerialOut(Iridiumport, "AT+SBDWB=" + meslength+CHR(13),"READY",1,300)
+  If (modemready<>0) Then
+    debug1 = "Modem Ready"
+    SerialOutBlock(Iridiumport,message,offset1)
+    SerialIn (binaryok,Iridiumport,100,"0",5)
+    If (InStr (1,binaryok,"0",2)) Then
+      debug2 = "Modem Accepts Data"
+      debug3 = "Waiting for Satellite"
+      online = SerialOut (Iridiumport,"AT+CIER=1,0,1,0"+CHR(13),"+CIEV:1,1",1,1000)                            'Set modem config and wait for satellite connection
+      If (online <> 0) Then
+        debug3 = "Satellite Visible"
+        debug4 = "Message Sent"
+        SerialOut(Iridiumport,"AT+SBDIX"+CHR(13),"",0,0)
+        SerialIn(messageresult,Iridiumport,4000,0,30)
+        SplitStr(numresult,messageresult,":",2,5)
+        SplitStr(result,numresult(2),",",6,5)
+        If (result(1) < 5) Then
+          debug5 = "Delivery confirmed by Satellite"
+          success = 1
         Else
-          debug3 = "No satellite Connection"
+          debug4 = "Message Failed"
         EndIf
       Else
-        debug2 = "Data not accepted by modem"
+        debug3 = "No satellite Connection"
       EndIf
     Else
-      debug1 = "Modem Not Ready"
+      debug2 = "Data not accepted by modem"
     EndIf
-
-  Wend
-  If (success = 0) Then
-    debug5 = "Message Not Delivered"
+  Else
+    debug1 = "Modem Not Ready"
   EndIf
-  SerialOut(Iridiumport,"AT+SBDD0"+CHR(13),"",0,100)
-  SerialFlush (Iridiumport)
-  SerialClose(Iridiumport)
-  PortSet(Iridiumpowerport,0)
+
+Wend
+If (success = 0) Then
+  debug5 = "Message Not Delivered"
+EndIf
+SerialOut(Iridiumport,"AT+SBDD0"+CHR(13),"",0,100)
+SerialFlush (Iridiumport)
+SerialClose(Iridiumport)
+PortSet(Iridiumpowerport,0)
 EndSub
 
 
@@ -267,72 +266,74 @@ EndSub
 
 'Main Program executes every 60 seconds
 BeginProg
-	Scan(60,Sec,1,0)
-		'Default Datalogger Battery Voltage measurement BattV
-		Battery(BattV)
-		'107 Temperature Probe measurement T107_F, log temperature as deg C for SR50 correction
-		Therm107(AirTemp_F,1,1,1,0,_60Hz,1.8,32)
-		AirTemp_C=(AirTemp_F-32)/1.8
-		'05103 Wind Speed & Direction Sensor measurements WS_mph and WindDir
-		PulseCount(WS_mph,1,1,1,1,0.2192,0)        'Multiplier is 0.2192 for mph for 05103.
-		'Uncomment next line if 05108 is used, and comment out the line above.
-		'PulseCount(WSM,1,1,1,1,0.3726,0)          'Multiplier is 0.3726 for mph for 05108.
-		BrHalf(WindDir,1,mV2500,2,2,1,2500,True,0,_60Hz,355,0)
-		If WindDir>=360 Then WindDir=0
-		'CS320 Sky SDI12 sensor measurements for CS320 pointing toward sky
-		' M!4 = Measures SolarRad, mV, SensTemp, XAxis, YAxis,ZAxis
-		SDI12Recorder(CS320_Sky(),7,"0","M4!",1,0)
-		'CS320 Snow SDI12 sensor measurements for CS320 pointing toward snow
-		' M!4 = Measures SolarRad, mV, SensTemp, XAxis, YAxis,ZAxis
-		SDI12Recorder (CS320_Snow(),5,"0","M4!",1.0,0)
-		If SolarRad_Sky  < 0 Then SolarRad_Sky = 0    'Removes negative values from CS320 sky
-		If SolarRad_Snow < 0 Then SolarRad_Snow = 0  'Removes negative values from CS320 snow
-	    'SR50 Sonic Ranging Sensor (SDI-12 Output) measurements 'DT_raw', 'Distance_TC'
-	    If TimeIntoInterval (59,60,min)Then
-		    SDI12Recorder(SR50(),3,"0","M1!",1,0)
-		    Distance_m=DT_Raw*SQR((AirTemp_C+273.15)/273.15)
-		EndIf
-		'Call Data Table and Store Data
-		CallTable Hourly
-		'Call Telemetry table to send hourly data via iridium
-		CallTable (Telemetry)
-	NextScan
+  Scan(60,Sec,1,0)
+    'Default Datalogger Battery Voltage measurement BattV
+    Battery(BattV)
+    '107 or 109 Temperature Probe measurement T107_F, log temperature as deg C for SR50 correction
+    'Therm109 (AirTemp_F,1,1,Vx1,0,250,1.8,32)
+    Therm107(AirTemp_F,1,1,1,0,_60Hz,1.8,32)
+    AirTemp_C=(AirTemp_F-32)/1.8
+    '05103 or 05108 Wind Speed & Direction Sensor measurements WS_mph and WindDir
+    PulseCount(WS_mph,1,1,1,1,0.2192,0)        'Multiplier is 0.2192 for mph for 05103.
+    'Uncomment next line if 05108 is used, and comment out the line above.
+    'PulseCount(WS_mph,1,1,1,1,0.3726,0)          'Multiplier is 0.3726 for mph for 05108.
+    BrHalf(WindDir,1,mV2500,2,2,1,2500,True,0,_60Hz,355,0)
+    If WindDir>=360 Then WindDir=0
+    'CS320 Sky SDI12 sensor measurements for CS320 pointing toward sky
+    ' M!4 = Measures SolarRad, mV, SensTemp, XAxis, YAxis,ZAxis
+    SDI12Recorder(CS320_Sky(),7,"0","M4!",1,0)
+    'CS320 Snow SDI12 sensor measurements for CS320 pointing toward snow
+    ' M!4 = Measures SolarRad, mV, SensTemp, XAxis, YAxis,ZAxis
+    SDI12Recorder (CS320_Snow(),5,"0","M4!",1.0,0)
+    If SolarRad_Sky  < 0 Then SolarRad_Sky = 0    'Removes negative values from CS320 sky
+    If SolarRad_Snow < 0 Then SolarRad_Snow = 0  'Removes negative values from CS320 snow
+    'SR50 Sonic Ranging Sensor (SDI-12 Output) measurements 'DT_raw', 'Distance_TC'
+    If TimeIntoInterval (59,60,min)Then
+      SDI12Recorder(SR50(),3,"0","M1!",1,0)
+      Distance_m=DT_Raw*SQR((AirTemp_C+273.15)/273.15)
+    EndIf
+    'Call Data Table and Store Data
+    CallTable Hourly
+    'Call Telemetry table to send hourly data via iridium
+    CallTable (Telemetry)
+    'Add telemetry instructions
+  NextScan
 
 SlowSequence
-  Scan (1,min,0,0)
-    debug1 = ""
-    debug2 = ""
-    debug3 = ""
-    debug4 = ""
+Scan (1,min,0,0)
+  debug1 = ""
+  debug2 = ""
+  debug3 = ""
+  debug4 = ""
 
-    'Add a delay multiplier for low battery voltage
-    lowPowerDelay = 1
-    if BattV < 12.3 Then
-        lowPowerDelay = 6
-    EndIf
-    if BattV < 12.0 Then
-        lowPowerDelay = 24
-    EndIf
+  'Add a delay multiplier for low battery voltage
+  lowPowerDelay = 1
+  If BattV < 12.3 Then
+    lowPowerDelay = 6
+  EndIf
+  If BattV < 12.0 Then
+    lowPowerDelay = 24
+  EndIf
 
-    'Manual force a message by setting forceMessage = 1 via the keypad
-    If forceMessage = 1 Then
+  'Manual force a message by setting forceMessage = 1 via the keypad
+  If forceMessage = 1 Then
+    Call senddatatoiridium(numvals,tries,success)
+    forceMessage = 0
+  EndIf
+
+  If TimeIntoInterval(1,sendInterval*lowPowerDelay,min) Then
+    tries = 0
+    Call senddatatoiridium(numvals,tries,success)
+  EndIf
+
+  If TimeIntoInterval(3,5,min) Then
+    'If too  many tries just skip this transmission
+    If (tries > 20) Then
+      success = 1
+    EndIf
+    If (success = 0) Then
       Call senddatatoiridium(numvals,tries,success)
-      forceMessage = 0
     EndIf
-
-    If TimeIntoInterval(1,sendInterval*lowPowerDelay,min) Then
-      tries = 0
-      Call senddatatoiridium(numvals,tries,success)
-    EndIf
-
-    If TimeIntoInterval(3,5,min) Then
-      'If too  many tries just skip this transmission
-      If (tries > 20) Then
-        success = 1
-      EndIf
-      If (success = 0) Then
-        Call senddatatoiridium(numvals,tries,success)
-      EndIf
-    EndIf
-  NextScan
+  EndIf
+NextScan
 EndProg
