@@ -8,6 +8,18 @@
 '----
 'Wiring: Red=1H, Black= EX1, Purple=G, Clear=G
 '
+'
+'CS215  ######NOTE Requires that the SDI Address be changed to "1" sharing the same port with SR50########
+' Wire
+' Color Function CR200(X)
+' ----- -------- -------
+' Red   Power     SW12v
+' Green SDI-12    signal C3
+' Black Power     ground G
+' White Power     ground G
+' Clear Shield    Signal Ground
+'
+
 'Program measures solar radition with two CS320 pyranometer sensors
 'One points up at sky, one points down at snow
 'Each CS320 records 6 variables: solar rad W/m^2, mV 3)sensor temp., x, y, z orientation
@@ -43,7 +55,11 @@ Public WindDir          'Wind direction measured by 05103 RM Young (degrees)
 Public CS320_Sky(6)     'Solar Radiation measured by CS320. Pointing up towwards sky.
 Public CS320_Snow(6)    'Solar radiation measured by CS320. Pointing down towards snow.
 Public Distance_m       'Distance to surface, corrected for air temperature
+Public Distance_cm      'Distance to surface in cm, corrected for air temperature
 Public SR50(2)
+Public TRHData(2)
+Alias TRHData(1)=AirTemp215
+Alias TRHData(2)=RH215
 
 'Iridium variables
 Public forceMessage
@@ -51,7 +67,7 @@ Public tries                                                  ' Counter that kee
 Public success                                                ' The variable is true when the modem is successful
 Const Iridiumport = com1                                      ' This is the serail port that the iridium modem is connected to
 Const Iridiumpowerport = 4                                    ' This is the port that turns the modem off and on 9=sw12
-Const numvals = 8                                             ' Edit this value to change the number of data values to pull from the table
+Const numvals = 9                                             ' Edit this value to change the number of data values to pull from the table
 Const sendInterval = 60                                       ' Telemetry interval in minutes
 Public lowPowerDelay
 
@@ -103,6 +119,9 @@ DataTable(Hourly,True,-1)
   Average (1,Distance_m,FP2,False)
   Average (1,DT_Raw,FP2,False)
   Average (1,SR50_Quality,FP2,False)
+  Average (1,AirTemp215,FP2,False)
+  Average (1,RH215,FP2,False)
+  
 EndTable
 
 'Parameters to send via telemetry each hour
@@ -114,6 +133,7 @@ DataTable (Telemetry,True,-1)
   WindVector (1,WS_mph,WindDir,FP2,False,0,0,1)
   Maximum (1,WS_mph,FP2,False,False)
   Average (1,Distance_m,FP2,False)
+  Average (1,RH215,FP2,False)
   Sample (1,tries,FP2)
 EndTable
 
@@ -148,7 +168,6 @@ Sub senddatatoiridium(numberofvalues,attempts,success)
   Dim binaryok As String * 20
   Dim modemready As Long
   Dim online As Long
-  Dim messageok As String * 20
   Public messageresult As String * 50
   Public numresult(2) As String * 50
   Dim j
@@ -291,7 +310,13 @@ BeginProg
     If TimeIntoInterval (59,60,min)Then
       SDI12Recorder(SR50(),3,"0","M1!",1,0)
       Distance_m=DT_Raw*SQR((AirTemp_C+273.15)/273.15)
+      Distance_cm = Distance_m*100
     EndIf
+    'CS215 Temperature & Relative Humidity Sensor measurements 'AirTC' and 'RH'
+    SDI12Recorder(TRHData(),3,"1","M!",1,0)
+    AirTemp215 = (AirTemp215 * (9/5)) + 32
+    If RH215 >100 AND RH215 < 108 Then RH215 = 100
+    
     'Call Data Table and Store Data
     CallTable Hourly
     'Call Telemetry table to send hourly data via iridium
