@@ -1,4 +1,5 @@
 'CR1000
+'BaseCamp_7K_2019_05_14.CR1
 'Program created on 4/12/2018.
 'Program edited on 5/12/2018.
 'Program edited on 6/5/2018.
@@ -23,7 +24,7 @@
 ' Clear Shield    Signal Ground
 '
 '
-'Program measures solar radition with two CS320 pyranometer sensors
+'Program measures solar radiation with two CS320 pyranometer sensors
 'One points up at sky, one points down at snow
 'Each CS320 records 6 variables: solar rad W/m^2, mV 3)sensor temp., x, y, z orientation
 '----
@@ -319,7 +320,7 @@ BeginProg
       Distance_m=DT_Raw*SQR((AirTemp_C+273.15)/273.15)
       Distance_cm = Distance_m*100
     EndIf
-    'CS215 Temperature & Relative Humidity Sensor measurements 'AirTC' and 'RH'
+    'CS215 Temperature (C) & Relative Humidity Sensor measurements 'AirTC' and 'RH'
     SDI12Recorder(TRHData(),3,"1","M!",1,0)
     AirTemp215 = (AirTemp215 * (9/5)) + 32
     If RH215 >100 AND RH215 < 108 Then RH215 = 100
