@@ -1,0 +1,67 @@
+'CR1000
+'KPass_10K_2019_05_14.CR1
+'Program created 4/26/2016.
+'Program edited 5/12/2018.
+'Program edited 8/28/2018.
+'Program edited 5/14/2019.
+'For Kahiltna Pass 10K Met Station. Measured AT and distance to snow.
+'
+'Program measures air temperature in C with CSI 107 or 109 temperature probe
+'----
+'Wiring 109 or 107 Air Temperature Probe: Red=1H, Black= EX1, Purple=G, Clear=G
+'
+'
+'Program measured snow depth with SR50a every hour at 59 minutes past the hour
+'SR50 measures three variables:
+'1) DT_Raw = Distance to surface in meters
+'2) Distance_m = Distance to surface in meters after air temperature correction.
+'3) SR50_Quality = Quality value of measurement 
+    '(ranges from 152 To 600, where 600 Is the poorest quality)
+'----
+'Wiring:  Connect Ground first: Black=G, White=G, Clear=G, then Green=C3, Red=12V,
+
+'Declare Variables and Units
+Public BattV
+Public PTemp_C
+Public AirTemp_C           'Air Temperature measured by T107 probe
+Public Distance_m          'Distance to surface, corrected for air temperature
+Public SR50(2)
+Alias SR50(1)=DT_raw       'Distance measured by SR50 before temperature correction
+Alias SR50(2)=SR50_Quality 'Quality of measurement from 152 to 600. Lower is better
+
+Units BattV=Volts
+Units PTemp_C=Deg C
+Units AirTemp_C=Deg C
+Units DT_raw=m
+Units Distance_m=m
+
+'Define Data Tables
+DataTable(Hourly,True,-1)
+	DataInterval(0,60,Min,10)
+	Average(1,BattV,FP2,False)
+	Average(1,AirTemp_C,FP2,False)
+	Average(1,Distance_m,FP2,False)
+	Average(1,DT_raw,FP2,False)
+	Average(1,SR50_Quality,FP2,False)
+EndTable
+
+'Main Program
+BeginProg
+	'Main Scan
+	Scan(60,Sec,1,0)
+		'Default Datalogger Battery Voltage measurement 'BattV'
+		Battery(BattV)
+		'Default Wiring Panel Temperature measurement 'PTemp_C'
+		PanelTemp(PTemp_C,_60Hz)
+		'107 or 109 Temperature Probe measurement
+		Therm109 (AirTemp_C,1,1,Vx1,0,250,1.0,0)
+		'Therm107(AirTemp_C,1,1,1,0,_60Hz,1,0)
+		'SR50 Sonic Ranging Sensor (SDI-12 Output) measurements 'DT_raw', 'Distance_TC'
+		If TimeIntoInterval (59,60,min)Then
+		SDI12Recorder(SR50(),3,"0","M1!",1,0)
+		Distance_m=DT_raw*SQR((AirTemp_C+273.15)/273.15)
+		EndIf
+		'Call Data Tables and Store Data
+		CallTable Hourly
+	NextScan
+EndProg
