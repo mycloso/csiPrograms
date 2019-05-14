@@ -320,7 +320,7 @@ BeginProg
       Distance_m=DT_Raw*SQR((AirTemp_C+273.15)/273.15)
       Distance_cm = Distance_m*100
     EndIf
-    'CS215 Temperature (C) & Relative Humidity Sensor measurements 'AirTC' and 'RH'
+    'CS215 Temperature (degC) & Relative Humidity Sensor measurements 'AirTC' and 'RH'. AirTemp215 converted to degF
     SDI12Recorder(TRHData(),3,"1","M!",1,0)
     AirTemp215 = (AirTemp215 * (9/5)) + 32
     If RH215 >100 AND RH215 < 108 Then RH215 = 100
