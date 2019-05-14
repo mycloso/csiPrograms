@@ -2,14 +2,18 @@
 'Program created on 4/12/2018.
 'Program edited on 5/12/2018.
 'Program edited on 5/31/2018.
-'For Genet Basin 14K Met Station. Measures AT, solar rad x2, w/s, w/d, and distance to snow
+'Program edited on 5/14/2019.
+'For Genet Basin 14K Met Station. Measures AT, AT/RH, solar rad x2, w/s, w/d, and distance to snow
 '
-'Program measures air temperature with a CSI 107 or CSI 109 temp sensor
+'Program measures air temperature with a CSI 107 or CSI 109 temp sensor. This is the primary AT reading.
 '----
 'Wiring: Red=1H, Black= EX1, Purple=G, Clear=G
 '
-'CS215  ######NOTE Requires that the SDI Address be changed to "1" sharing the same port with SR50########
-' Wire
+'
+'Program measures AT/RH with a CSI CS215  
+'######NOTE Requires that the SDI Address be changed to "1" sharing the same port with SR50########
+'----
+' Wiring:
 ' Color Function CR200(X)
 ' ----- -------- -------
 ' Red   Power     SW12v
@@ -17,28 +21,33 @@
 ' Black Power     ground G
 ' White Power     ground G
 ' Clear Shield    Signal Ground
-
-'Program measures solar radition with two CS320 pyranmoeter sensors
+'
+'
+'Program measures solar radiation with two CS320 pyranometer sensors
 'One points up at sky, one points down at snow
 'Each CS320 records 6 variables: solar rad W/m^2, mV 3)sensor temp., x, y, z orientation
 '----
 'Wiring: CS320_Sky White=C7, Clear=G, Red=12V, Black=G, Blue=G
 'Wiring: CS320_Snow White=C5, Clear=G, Red=12V, Black=G, Blue=G
 '
+'
 'Program measures wind speed and direction with a 05108 or 05103 RM Young anemometer
 '----
 'Wiring: Green=1H (SE2), Red=P1, Blue=EX2, Black=G, Clear=G, White=G
-
+'
+'
 'Program measures snow depth with SR50 every per hour at 59 minutes past the hour
 'SR50 measures three variables:
-'1)DT_Raw = Distance to surface in meters
-'2)Distance_m = Distance to surface in meters after air temperature correction.
+'1) DT_Raw = Distance to surface in meters
+'2) Distance_m = Distance to surface in meters after air temperature correction.
 '3) SR50_Quality = Quality value of measurement
 '(ranges from 152 To 600, where 600 Is the poorest quality)
 '---
 'Wiring:  Connect Ground first: Black=G, White=G, Clear=G, then Green=C3, Red=12V,
-
+'
+'
 'Iridium Modem IMEI 300234065794630
+'----
 'Wiring: Yellow = C1, Grey = C2, Red (single pigtail) - C4
 'Wiring (cont.) = Red 12V power, Black Ground [either on CR1000 or on charge controller]
 
@@ -310,7 +319,7 @@ BeginProg
       Distance_m=DT_Raw*SQR((AirTemp_C+273.15)/273.15)
       Distance_cm = Distance_m*100
     EndIf
-    'CS215 Temperature & Relative Humidity Sensor measurements 'AirTC' and 'RH'
+    'CS215 Temperature & Relative Humidity Sensor measurements 'AirTC' (F) and 'RH'
     SDI12Recorder(TRHData(),3,"1","M!",1,0)
     AirTemp215 = (AirTemp215 * (9/5)) + 32
     If RH215 >100 AND RH215 < 108 Then RH215 = 100
