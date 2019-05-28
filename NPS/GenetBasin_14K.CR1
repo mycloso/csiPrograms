@@ -2,48 +2,55 @@
 'Program created on 4/12/2018.
 'Program edited on 5/12/2018.
 'Program edited on 5/31/2018.
-'For Genet Basin 14K Met Station. Measures AT, solar rad x2, w/s, w/d, and distance to snow
+'Program edited on 5/14/2019.
+'Program edited on 5/28/2019.
+'For Genet Basin 14K Met Station. Measures AT, AT/RH, solar rad x2, w/s, w/d, and distance to snow
 '
-'Program measures air temperature with a CSI 107 or CSI 109 temp sensor
+'AIR TEMP with a CSI 107 or CSI 109 temp sensor
 '----
 'Wiring: Red=1H, Black= EX1, Purple=G, Clear=G
 '
-'CS215  ######NOTE Requires that the SDI Address be changed to "1" sharing the same port with SR50########
-' Wire
+'
+'AT/RH with a CS215. SDI 12 address of CS215 must be "1"
+'----
 ' Color Function CR200(X)
 ' ----- -------- -------
-' Red   Power     SW12v
+' Red   Power     12v (CHANGE PROGRAM TO SWITCH ON POWER TO CS215, THEN CORRECT THIS BACK TO "SW12V")
 ' Green SDI-12    signal C3
 ' Black Power     ground G
 ' White Power     ground G
 ' Clear Shield    Signal Ground
-
-'Program measures solar radition with two CS320 pyranmoeter sensors
+'
+'
+'SOLAR RADIATION with two CS320 pyranmoeter sensors
 'One points up at sky, one points down at snow
 'Each CS320 records 6 variables: solar rad W/m^2, mV 3)sensor temp., x, y, z orientation
 '----
 'Wiring: CS320_Sky White=C7, Clear=G, Red=12V, Black=G, Blue=G
 'Wiring: CS320_Snow White=C5, Clear=G, Red=12V, Black=G, Blue=G
 '
-'Program measures wind speed and direction with a 05108 or 05103 RM Young anemometer
+'
+'WIND SPEED AND DIRECTION with a 05108 or 05103 RM Young anemometer
 '----
-'Wiring: Green=1H (SE2), Red=P1, Blue=EX2, Black=G, Clear=G, White=G
-
-'Program measures snow depth with SR50 every per hour at 59 minutes past the hour
+'Wiring: Green=1L (SE2), Red=P1, Blue=EX2, Black=G, Clear=G, White=G
+'
+'
+'SNOW DEPTH with SR50 every per hour at 59 minutes past the hour. SDI12 address of SR50 must be "0"
 'SR50 measures three variables:
-'1)DT_Raw = Distance to surface in meters
-'2)Distance_m = Distance to surface in meters after air temperature correction.
+'1) DT_Raw = Distance to surface in meters
+'2) Distance_m = Distance to surface in meters after air temperature correction.
 '3) SR50_Quality = Quality value of measurement
 '(ranges from 152 To 600, where 600 Is the poorest quality)
 '---
 'Wiring:  Connect Ground first: Black=G, White=G, Clear=G, then Green=C3, Red=12V,
-
+'
+'
 'Iridium Modem IMEI 300234065794630
 'Wiring: Yellow = C1, Grey = C2, Red (single pigtail) - C4
 'Wiring (cont.) = Red 12V power, Black Ground [either on CR1000 or on charge controller]
-
+'
 'For telemetry send the "Telemetry" table
-
+'
 'Declare Variables and Units
 Public BattV
 Public AirTemp_F        'Air temperature measured by 107 or 109 sensor (Degree F)
@@ -58,7 +65,7 @@ Public SR50(2)
 Public TRHData(2)
 Alias TRHData(1)=AirTemp215
 Alias TRHData(2)=RH215
-
+'
 'iridium variables
 Public forceMessage
 Public tries                                                  ' Counter that keeps track of the number of attempts to send data (zero'd out each hour)
@@ -68,7 +75,7 @@ Const Iridiumpowerport = 4                                    ' This is the port
 Const numvals = 9                                             ' Edit this value to change the number of data values to pull from the table
 Const sendInterval = 60                                       ' Telemetry interval in minutes
 Public lowPowerDelay
-
+'
 Alias CS320_Sky(1)=SolarRad_Sky
 Alias CS320_Sky(2)=mV_Sky
 Alias CS320_Sky(3)=SensTemp_Sky
@@ -104,7 +111,7 @@ Units ZAxis_Snow=Degrees
 Units DT_Raw=m
 Units Distance_m=m
 Units Distance_cm=cm
-
+'
 'Define Data Tables
 DataTable(Hourly,True,-1)
   DataInterval(0,60,Min,10)
@@ -121,7 +128,7 @@ DataTable(Hourly,True,-1)
   Average (1,AirTemp215,FP2,False)
   Average (1,RH215,FP2,False)
 EndTable
-
+'
 'Parameters to send via telemtry each hour
 DataTable (Telemetry,True,-1)
   DataInterval(0,60,Min,10)
